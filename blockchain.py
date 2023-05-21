@@ -1,9 +1,5 @@
 import hashlib
-import sys
-
-def debug(*args, **kwargs):
-	if "debug" in sys.argv:
-		print(*args, **kwargs)
+from utils import debug
 
 def sha256(inp):
 	return hashlib.sha256(inp.encode('UTF-8')).hexdigest()
@@ -36,10 +32,12 @@ class HashBlock:
 	def __repr__(self):
 		return f"{self.H}{self.T}{self.N}"
 
-class Blockchain:
+class Blog:
 	def __init__(self):
 		self.blocks = []
 	def add(self, OP, username, title, content):
+		debug("Attempting to add block to blockchain")
+
 		h_prev = self.blocks[-1].hash if self.blocks else "0"*64
 		
 		posts_found = sum([b.T.title == title and b.T.OP == "POST" for b in self.blocks])
@@ -56,7 +54,53 @@ class Blockchain:
 			return False
 		
 		self.blocks.append(HashBlock(h_prev, OP, username, title, content))
+	def blog(self):
+		debug("print blog")
+
+		titles = [b.T.title for b in self.blocks if b.T.OP == "POST"]
+		if len(titles) == 0:
+			print("BLOG EMPTY")
+		else:
+			print('[')
+			for t in titles[:-1]:
+				print(f"\t{t},")
+			print(f"\t{titles[-1]}\n]")
+	def view(self, username):
+		debug("print content of", username)
+
+		is_empty = True
+		for b in self.blocks:
+			if b.T.OP == "POST" and b.T.username == username:
+				is_empty = False
+				print("\t"+b.T.title)
+				print(b.T.content)
+				print()
+		if is_empty:
+			print("NO POST")
+		
+	def read(self, title):
+		debug("read comments of", title)
+
+		post = None
+		for b in self.blocks:
+			if b.T.OP == "POST" and b.T.title == title:
+				post = b
+		
+		if post:
+			print(f'\t{post.T.title} - {post.T.username}')
+			print(post.T.content)
+			print()
+			
+			for b in self.blocks:
+				if b.T.OP == "COMMENT" and b.T.title == title:
+					print(f"comment by {b.T.username}: {b.T.content}")
+		
+		else:
+			print('POST NOT FOUND')
+		
 	def __str__(self):
+		if len(self.blocks) == 0:
+			return "[]"
 		out = '[\n'
 		for block in self.blocks:
 			out+=f"\t{block.T},\n"
@@ -65,12 +109,17 @@ class Blockchain:
 		return out
 
 if __name__ == "__main__":
-	bc = Blockchain()
+	bc = Blog()
 	bc.add("POST", "biggergig", "hello", "this is the content")
-	bc.add("POST", "biggergig", "hello", "this is the content")
+	bc.add("POST", "biggergig", "hello2", "this is the content")
 	bc.add("COMMENT", "biggergig", "hello", "comment #1 on hello")
-	bc.add("POST", "cdese", "hello", "this is the content")
-	bc.add("POST", "cdese", "hello2", "this is the content")
+	bc.add("POST", "cdese", "hello3", "this is the content")
 	bc.add("COMMENT", "biggergig", "hello", "comment #2 on hello")
-
-	print(bc)
+	bc.blog()
+	bc.view("cdese")
+	bc.view("biggergig")
+	
+	bc.read("hello")
+	bc.read("NaN")
+	bc.read("hello2")
+	# print(bc)
