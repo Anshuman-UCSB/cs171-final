@@ -3,6 +3,7 @@ import threading
 from utils import debug
 import pickle
 from time import sleep
+from network import paxos
 
 class Network:
 	def __init__(self, id):
