@@ -25,7 +25,6 @@ class MultiPaxos:
 
 	def incrementDepth(self):
 		self.ballot_num[0]+=1
-		self.ballot_num[1]+=1
 		self.ballot_num[2]=self.pid
 
 	def handleMessages(self):
@@ -70,8 +69,7 @@ class MultiPaxos:
 				# self.accept(vals, new_val)
 			else:
 				print("COULDN'T GET LEADER")
-				# TIMEOUT
-				...
+				self.prepare()
 		else:
 			...
 			# ask leader for heartbeat
