@@ -52,7 +52,10 @@ class Blog:
 		else:
 			debug("invalid operation given, recieved OP",OP)
 			return False
-		
+		if OP == "POST":
+			print(f"NEW POST `{title}` from {username}")
+		elif OP == "COMMENT":
+			print(f"NEW COMMENT `{title}` from {username}")
 		self.blocks.append(HashBlock(h_prev, OP, username, title, content))
 	def blog(self):
 		debug("print blog")

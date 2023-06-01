@@ -2,6 +2,7 @@ import socket
 import threading
 from utils import debug
 import pickle
+from time import sleep
 
 class Network:
 	def __init__(self, id):
@@ -19,13 +20,22 @@ class Network:
 		threading.Thread(target=self.read_messages).start()
 		self.canSend = [True]*5
 
+	def pop_message(self):
+		while len(self.messages) == 0:
+			sleep(.1)
+		with self.messageLock:
+			return self.messages.pop(0)
+
 	def read_messages(self):
 		while True:
 			message,address = self.UDP.recvfrom(1024)
 			
 			with self.messageLock:
-				self.messages.append((pickle.loads(message),address[1]-9000))
-				debug(self.id,"Recieved message:",self.messages[-1])
+				if self.canSend[address[1]-self.base_port]:
+					self.messages.append((pickle.loads(message),address[1]-self.base_port))
+					debug(self.id,"Recieved message:",self.messages[-1])
+				else:
+					debug(self.id,"didn't recieve message:",(pickle.loads(message),address[1]-self.base_port))
 
 	def send(self, dest: int, message):
 		assert dest != self.id, "uh oh, tried to send to self"
