@@ -38,7 +38,7 @@ class MultiPaxos:
 			elif content[0] == "CATCHUP":
 				bc = content[1].T
 				self.blog.add(bc.OP, bc.username, bc.title, bc.content)
-				self.responses = -0x5F3759DF # makes it impossible to get majority
+				self.responses = -3 # makes it impossible to get majority
 				self.incrementDepth()
 			elif content[0] == "ACCEPT":
 				self.accepted(content[2], 0)
