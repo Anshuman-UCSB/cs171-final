@@ -1,5 +1,6 @@
 import hashlib
 from utils import debug
+import pickle
 
 def sha256(inp):
 	return hashlib.sha256(inp.encode('UTF-8')).hexdigest()
@@ -50,7 +51,7 @@ class Blog:
 				print("DUPLICATE TITLE")
 				return False
 		else:
-			debug("invalid operation given, recieved OP",OP)
+			debug("invalid operation given, received OP",OP)
 			return False
 		if OP == "POST":
 			print(f"NEW POST `{title}` from {username}")
@@ -110,7 +111,7 @@ class Blog:
 		out = out[:-2]
 		out += '\n]'
 		return out
-
+	
 if __name__ == "__main__":
 	bc = Blog()
 	bc.add("POST", "biggergig", "hello", "this is the content")

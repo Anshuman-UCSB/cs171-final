@@ -33,17 +33,22 @@ class Network:
 			with self.messageLock:
 				if self.canSend[address[1]-self.base_port]:
 					self.messages.append((pickle.loads(message),address[1]-self.base_port))
-					debug(self.id,"Recieved message:",self.messages[-1])
+					debug(self.id,"Received message:",self.messages[-1])
 				else:
 					debug(self.id,"didn't recieve message:",(pickle.loads(message),address[1]-self.base_port))
 
+	def broadcast(self, message):
+		debug("broadcasting message",message)
+		for dest in range(5):
+			self.send(dest, message)
+
 	def send(self, dest: int, message):
-		assert dest != self.id, "uh oh, tried to send to self"
+		# assert dest != self.id, "uh oh, tried to send to self"
 		if self.canSend[dest] == False:
 			debug(self.id, "failed to send a message to",dest,"due to broken link")
 			return False
 		self.UDP.sendto(pickle.dumps(message), (self.ip, self.base_port + dest))
-		debug(self.id,f"sent message ({message}) to {dest}")
+		debug(self.id,f"sent message {message} to {dest}")
 
 	def failLink(self, dest):
 		self.canSend[dest] = False

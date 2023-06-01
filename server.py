@@ -12,17 +12,11 @@ class Server:
 		self.net = Network(self.pid)
 
 		threading.Thread(target=self.handleInput).start()
-		threading.Thread(target=self.handleMessages).start()
 
 	def crash(self):
 		debug("manual crash", flush=True)
 		stdout.flush()
 		_exit(0)
-
-	def handleMessages(self):
-		while True:
-			msg = self.net.pop_message()
-			debug("recieved message",msg)
 		
 
 	def handleInput(self):
@@ -68,7 +62,7 @@ class Server:
 					else:
 						debug("ERROR: invalid command")	
 				else:
-					print("ERROR: invalid command")	
+					print("ERROR: invalid command")
 if __name__ == "__main__":
 	try:
 		s = Server(argv[1])
