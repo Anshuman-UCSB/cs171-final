@@ -5,8 +5,8 @@ import pickle
 from time import sleep
 
 class Network:
-	def __init__(self, id):
-		self.id = id
+	def __init__(self, pid):
+		self.pid = pid
 		self.messages = []
 		self.messageLock = threading.Lock()
 
@@ -15,16 +15,18 @@ class Network:
 
 		self.UDP = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 		self.UDP.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self.UDP.bind((self.ip, self.base_port+self.id))
+		self.UDP.bind((self.ip, self.base_port+self.pid))
 
 		threading.Thread(target=self.read_messages).start()
 		self.canSend = [True]*5
 
 	def pop_message(self):
 		while len(self.messages) == 0:
-			sleep(.1)
+			sleep(.01)
 		with self.messageLock:
-			return self.messages.pop(0)
+			m =  self.messages.pop(0)
+			print("popping", m, self.messages)
+			return m
 
 	def read_messages(self):
 		while True:
@@ -39,22 +41,23 @@ class Network:
 				else:
 					if self.canSend[address[1]-self.base_port]:
 						self.messages.append((message,address[1]-self.base_port))
-						debug(self.id,"Received message:",self.messages[-1])
+						debug(self.pid,"Received message:",self.messages[-1])
+						debug(self.messages)
 					else:
-						debug(self.id,"didn't recieve message:",(message,address[1]-self.base_port))
+						debug(self.pid,"didn't recieve message:",(message,address[1]-self.base_port))
 
 	def broadcast(self, message):
-		debug("broadcasting message",message)
+		debug(self.pid, "broadcasting message",message)
 		for dest in range(5):
 			self.send(dest, message)
 
 	def send(self, dest: int, message):
-		# assert dest != self.id, "uh oh, tried to send to self"
+		# assert dest != self.pid, "uh oh, tried to send to self"
 		if self.canSend[dest] == False:
-			debug(self.id, "failed to send a message to",dest,"due to broken link")
+			debug(self.pid, "failed to send a message to",dest,"due to broken link")
 			return False
 		self.UDP.sendto(pickle.dumps(message), (self.ip, self.base_port + dest))
-		debug(self.id,f"sent message {message} to {dest}")
+		debug(self.pid,f"sent message {message} to {dest}")
 
 	def failLink(self, dest):
 		self.canSend[dest] = True

@@ -3,7 +3,16 @@ from constants import TIMEOUT
 import threading
 import time
 from blockchain import Blog
+from enum import Enum
 from utils import *
+import random
+
+class States(Enum):
+	INIT = 0
+	BEHIND = 1
+	ELECTION = 2
+	PROPOSAL = 3
+	DECISION = 4
 
 class MultiPaxos:
 	def __init__(self, net, pid, blog):
@@ -11,12 +20,17 @@ class MultiPaxos:
 		self.pid = pid
 		self.blog = blog
 
+		self.state = States.INIT
+
 		self.leader = None
 		self.ballot_num = [0,0,0]
 		self.accept_val = None
 		self.accept_num = None
 		self.responses = None
 		self.val = None
+
+		self.flag = None
+
 		threading.Thread(target=self.handleMessages).start()
 	
 	def incrementBallotNum(self):
@@ -30,84 +44,53 @@ class MultiPaxos:
 	def handleMessages(self):
 		while True:
 			content,sender = self.net.pop_message()
-			if content[0] == "PREPARE":
-				self.promise(content[1])
-			elif content[0] == "PROMISE":
-				self.responses+=1
-			elif content[0] == "CATCHUP":
-				bc = content[1].T
-				self.blog.add(bc.OP, bc.username, bc.title, bc.content)
-				self.responses = -3 # makes it impossible to get majority
-				self.incrementDepth()
-			elif content[0] == "ACCEPT":
-				self.accepted(content[2], 0)
-			elif content[0] == "ACCEPTED":
-				...
-			elif content[0] == "DECIDE":
-				# add entry to blockchain
-				bc = content[1].T
-				self.blog.add(bc.OP, bc.username, bc.title, bc.content)
-				...
-			
-			print((self.pid),"handleMessages got", content,sender)
-	
-	def catchup(self,ballot_num):
-		assert self.ballot_num[0] > ballot_num[0], "calling catchup when not deeper?"
-		self.net.send(ballot_num[2], ("CATCHUP", self.blog.blocks[ballot_num[0]]))
+			command = content[0]
+			match command:
+				case "PING":
+					bn = content[1]
+					if bn[0] < self.ballot_num[0]:
+						self.net.send(sender, ("OUTDATED", self.ballot_num))
+					elif bn[0] > self.ballot_num[0]:
+						self.state = States.BEHIND
+						self.catchup(bn)
+					else:
+						self.net.send(sender, ("PONG", self.ballot_num))
+				case "PONG":
+					assert self.flag == False,  f"flag is not false ({self.flag})"
+					self.flag = True
+				case "OUTDATED":
+					...
+				case _:
+					error(self.pid, "unknown command", content, 'from', sender)
 
-	def prepare(self):
-		if self.leader is None:
-			self.incrementBallotNum()
-			print(self.pid,"broadcasting PREPARE",self.ballot_num)
-			self.net.broadcast(("PREPARE",self.ballot_num))
-			self.responses = 0
+			debug((self.pid),"handleMessages got", content,sender)
+	
+	def catchup(self, bn):
+		while self.ballot_num[0] < bn[0]:
+			# catchup here
+			...
+
+	def validate_leader(self):
+		# Function should result in self.leader being a valid leader, either self or someone else
+		if self.leader is not None:
+			assert self.flag == None, f"flag already in use ({self.flag})"
+			self.flag = False
+			self.net.send(self.leader, ("PING", self.ballot_num))
+			
 			start_time = time.time()
-			while time.time() <= TIMEOUT + start_time:
-				if self.responses >= 3: break
-			if self.responses >= 3:
-				self.leader = self.pid
-				# self.accept(vals, new_val)
-			else:
-				print("COULDN'T GET LEADER")
-				self.prepare()
-		else:
+			while time.time() <= start_time + TIMEOUT:
+				if self.flag == True: break
+				time.sleep(.1)
+			if self.flag == False:
+				# Existing leader did not send heartbeat
+				self.leader = None
+		
+		if self.leader == None and self.state != States.BEHIND:
+			# we try to elect ourselves
 			...
-			# ask leader for heartbeat
-
-	def promise(self, ballot_num):
-		if ballot_num[0] < self.ballot_num[0]:
-			self.catchup(ballot_num)
-		elif ballot_num >= self.ballot_num:
-			self.ballot_num = ballot_num
-			pid = ballot_num[2]
-			self.net.send(pid, ("PROMISE", ballot_num, self.accept_num, self.accept_val))
-	
-	def accept(self, ballot_nums, vals):
-		if vals != []:
-			max_ballot = max(ballot_nums)
-			pid = ballot_nums.index(max_ballot)
-			max_value = vals[pid]
 			
-			self.val = max_value
-			self.ballot_num = max_ballot
-		self.net.broadcast(("ACCEPT", self.ballot_num, self.val))
-	
-	def accepted(self, ballot_num, value):
-		if ballot_num >= self.ballot_num:
-			self.accept_num = ballot_num
-			self.accept_val = value
-			pid = ballot_num[2]
-			self.net.send(pid, ("ACCEPTED", ballot_num, value))
-
-	def decide(self):
-		self.net.broadcast(("DECIDE", self.val))
-
-	def propose_value(self):
-		if self.leader == self.pid:
-			...
-		else:
-			# send message to leader to propose value
-			...
+	def __str__(self):
+		return str(self.pid)
 	
 	
 if __name__ == "__main__":

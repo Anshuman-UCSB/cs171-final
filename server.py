@@ -1,7 +1,7 @@
 from sys import stdout,argv
 from blockchain import Blog
 from network import Network
-from utils import *
+from utils import debug, parseNums, parseArgs, isDebug
 from os import _exit
 import threading
 

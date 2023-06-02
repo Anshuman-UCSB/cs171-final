@@ -15,7 +15,7 @@ class Content:
 		return f"<{self.OP},{self.username},{self.title},{self.content}>"
 
 class HashBlock:
-	def __init__(self, H,OP, username, title, content):
+	def __init__(self, H, OP, username, title, content):
 		self.H = H		                                # hash pointer
 		
 		self.T = Content(OP, username, title, content)  # writing operation details
