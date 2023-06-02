@@ -3,7 +3,6 @@ import threading
 from utils import debug
 import pickle
 from time import sleep
-from network import paxos
 
 class Network:
 	def __init__(self, id):
@@ -30,13 +29,19 @@ class Network:
 	def read_messages(self):
 		while True:
 			message,address = self.UDP.recvfrom(1024)
+			message = pickle.loads(message)
 			
 			with self.messageLock:
-				if self.canSend[address[1]-self.base_port]:
-					self.messages.append((pickle.loads(message),address[1]-self.base_port))
-					debug(self.id,"Received message:",self.messages[-1])
+				if message == "fail":
+					self.canSend[address[1]-self.base_port] = False
+				elif message == "fix":
+					self.canSend[address[1]-self.base_port] = True
 				else:
-					debug(self.id,"didn't recieve message:",(pickle.loads(message),address[1]-self.base_port))
+					if self.canSend[address[1]-self.base_port]:
+						self.messages.append((message,address[1]-self.base_port))
+						debug(self.id,"Received message:",self.messages[-1])
+					else:
+						debug(self.id,"didn't recieve message:",(message,address[1]-self.base_port))
 
 	def broadcast(self, message):
 		debug("broadcasting message",message)
@@ -52,9 +57,12 @@ class Network:
 		debug(self.id,f"sent message {message} to {dest}")
 
 	def failLink(self, dest):
+		self.canSend[dest] = True
+		self.send(dest, "fail")
 		self.canSend[dest] = False
 	def fixLink(self, dest):
 		self.canSend[dest] = True
+		self.send(dest, "fix")
 	
 
 if __name__ == "__main__":
