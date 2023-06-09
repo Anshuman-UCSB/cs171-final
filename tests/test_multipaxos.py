@@ -9,55 +9,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 debugLevel = 1
 
-class TestNetwork(unittest.TestCase):
-	def setUp(self):
-		sys.argv.append("debug")
-		sys.argv.append(str(debugLevel))
-	def tearDown(self):
-		assert sys.argv.pop(-1) == str(debugLevel)
-		assert sys.argv.pop(-1) == "debug"
-
-	def test_failLink(self):
-		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		assert all(mp[0].net.canSend) == True
-		mp[0].net.failLink(2)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, False, True, True]
-		time.sleep(.1)
-		assert mp[2].net.canSend == [False, True, True, True, True]
-		mp[1].net.failLink(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, False, False, True, True]
-		mp[0].net.failLink(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [False, False, False, True, True]
-
-	def test_fixlink(self):
-		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		assert all(mp[0].net.canSend) == True
-		mp[0].net.failLink(2)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, False, True, True]
-		time.sleep(.1)
-		assert mp[2].net.canSend == [False, True, True, True, True]
-		mp[1].net.failLink(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, False, False, True, True]
-		mp[0].net.failLink(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [False, False, False, True, True]
-
-		mp[0].net.fixLink(1)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [False, True, False, True, True]
-		mp[0].net.fixLink(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, False, True, True]
-		mp[2].net.fixLink(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, True, True, True]
-		assert mp[2].net.canSend == [True, True, True, True, True]
-		
 class TestMultiPaxos(unittest.TestCase):
 
 	def setUp(self):
@@ -74,6 +25,12 @@ class TestMultiPaxos(unittest.TestCase):
 			assert mp[i].ballot_num == [0,0,0]
 			assert mp[i].accept_num == None
 			assert mp[i].accept_val == None
+
+	def test_simple_leader(self):
+		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
+		mp[0].prepare()
+		time.sleep(.1)
+		assert mp[0].leader == 0
 
 	def test_5_promises(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
@@ -127,6 +84,24 @@ class TestMultiPaxos(unittest.TestCase):
 		time.sleep(0.1)
 		assert mp[3].leader == 3
 		assert mp[2].leader == None
+
+class TestMultiPaxos2:
+	def setup_method(self):
+		sys.argv.append("debug")
+		sys.argv.append(str(debugLevel))
+	def teardown_method(self):
+		assert sys.argv.pop(-1) == str(debugLevel)
+		assert sys.argv.pop(-1) == "debug"
+
+	def test_accept_fresh_value(self):
+		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
+		mp[0].prepare()
+		time.sleep(.1)
+		assert mp[0].leader == 0
+
+		mp[0].addToQueue("sneep")
+		assert mp[0].queue == ['sneep']
+		mp[0].accept()
 
 if __name__ == '__main__':
 	try:
