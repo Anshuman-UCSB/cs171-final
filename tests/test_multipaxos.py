@@ -9,15 +9,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 debugLevel = 0
 
-class TestMultiPaxos(unittest.TestCase):
+class TestMultiPaxos:
 
-	def setUp(self):
+	def setup_method(self):
 		sys.argv.append("debug")
 		sys.argv.append(str(debugLevel))
-	def tearDown(self):
+	def teardown_method(self):
 		assert sys.argv.pop(-1) == str(debugLevel)
 		assert sys.argv.pop(-1) == "debug"
-
+		
 	def test_defaults(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
 		for i in range(5):
@@ -150,7 +150,7 @@ class TestMultiPaxos2:
 		time.sleep(.1)
 		for i in range(3):
 			assert mp[i].accept_val == "shmeep"
-			assert mp[i].accept_num == [0,1,0]
+			assert mp[i].accept_num == [0,1,5,2]
 		mp[4].prepare()
 		time.sleep(.1)
 		assert mp[0].leader == 0
@@ -190,13 +190,21 @@ class TestMultiPaxos2:
 		time.sleep(.1)
 		for i in range(1,5):
 			assert mp[i].accept_val == None
-		
+		assert mp[0].queue == ['will you go out with me']
 		mp[1].net.fixLink(0)
 		time.sleep(.1)
 		mp[1].accept("what about me")
 		time.sleep(.1)
 		for i in range(5):
 			assert mp[i].accept_val == "what about me"
+		assert mp[i].queue == []
+
+	def test_forward_queue(self):
+		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
+		for i in range(5):
+			mp[0].addToQueue(i)
+		assert mp[0].queue == [0,1,2,3,4]
+
 
 if __name__ == '__main__':
 	try:

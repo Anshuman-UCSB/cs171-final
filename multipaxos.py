@@ -48,7 +48,8 @@ class MultiPaxos:
 
 	def handleMessages(self):
 		while True:
-			time.sleep(.01 if isDebug() else 3)
+			if not isDebug():
+				time.sleep(3)
 
 			content,sender = self.net.pop_message()
 			match content[0]:
@@ -109,9 +110,9 @@ class MultiPaxos:
 
 	def accept(self, add_val=None):
 		"broadcast accept message with value"
+		if add_val is not None:
+			self.queue.append(add_val)
 		if self.leader == self.pid:
-			if add_val is not None:
-				self.queue.append(add_val)
 			assert self.accept_val or self.queue, "calling accept but no value to propose" 
 			val = self.accept_val or self.queue.pop(0)
 			self.acceptances = 0
@@ -123,20 +124,15 @@ class MultiPaxos:
 					break
 			if self.acceptances < 3:
 				debug(self.pid,"- NOT ENOUGH ACCEPTANCES (",self.acceptances,")")
-				# self.queue()
+				self.queue.insert(0, val)
 				return False
 			else:
 				debug(self.pid,"was accepted")
 				self.leader = self.pid
 				return True
 		else:
-			if self.leader is not None and self.checkHeartbeat(self.leader):
-				...
-			else:
-				self.prepare()
-				self.accept()
-				return False
-		
+			error(self.pid, "IS NOT LEADER,", self.leader, "IS")
+			return False
 	
 	def accepted(self, content, sender):
 		"send accepted message back to leader"
