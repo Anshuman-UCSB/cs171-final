@@ -11,6 +11,7 @@ class MultiPaxos:
 		self.pid = pid
 		self.blog = blog
 		self.leader = None
+		self.queue = []
 
 		self.ballot_num = [0,0,0]		# Depth, Num, Pid
 		self.accept_val = None
@@ -18,7 +19,7 @@ class MultiPaxos:
 		
 		self.promises = 0
 		self.acceptances = 0
-		self.queue = []
+		self.heartbeats = set()
 
 		threading.Thread(target=self.handleMessages).start()
 
@@ -32,6 +33,18 @@ class MultiPaxos:
 
 	def addToQueue(self, val):
 		self.queue.append(val)
+
+	def checkHeartbeat(self, dest):
+		self.heartbeats-={dest}
+		self.net.send(dest, ("PING",))
+		start_time = time.time()
+		while time.time() < start_time() + TIMEOUT:
+			if dest in self.heartbeats:
+				break
+		return dest in self.heartbeats
+
+	def updateHeartbeat(self, sender):
+		self.heartbeats|={sender}
 
 	def handleMessages(self):
 		while True:
@@ -47,6 +60,12 @@ class MultiPaxos:
 					self.accepted(content, sender)
 				case "ACCEPTED":
 					self.recieve_accepted(content, sender)
+				case "PING":
+					self.net.send(sender, ("PONG",))
+				case "PONG":
+					self.updateHeartbeat(sender)
+				case "ENQUEUE":
+					self.addToQueue(content[1])
 				case _:
 					error(self.pid,"Unknown message recieved:",content,"from",sender)
 
@@ -78,6 +97,8 @@ class MultiPaxos:
 		if self.ballot_num <= content[1]:
 			self.ballot_num = content[1]
 			self.leader = None
+			while self.queue:
+				self.net.send(sender,("ENQUEUE",self.queue.pop(0)))
 			self.net.send(sender, ("PROMISE", self.accept_val, self.accept_num))
 			
 	def recieve_promise(self, content, sender):
@@ -102,13 +123,19 @@ class MultiPaxos:
 					break
 			if self.acceptances < 3:
 				debug(self.pid,"- NOT ENOUGH ACCEPTANCES (",self.acceptances,")")
+				# self.queue()
 				return False
 			else:
 				debug(self.pid,"was accepted")
 				self.leader = self.pid
 				return True
 		else:
-			error(self.pid,"is not the leader")
+			if self.leader is not None and self.checkHeartbeat(self.leader):
+				...
+			else:
+				self.prepare()
+				self.accept()
+				return False
 		
 	
 	def accepted(self, content, sender):
