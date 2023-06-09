@@ -26,11 +26,11 @@ class Server:
 				self.crash()
 			elif inp.startswith("failLink"):
 				target = parseNums(inp)[0]
-				self.net.failLink(target)
+				self.net.fail_link(target)
 				debug("broke link to",target)
 			elif inp.startswith("fixLink"):
 				target = parseNums(inp)[0]
-				self.net.fixLink(target)
+				self.net.fix_link(target)
 				debug("fixed link to",target)
 			elif inp == "blockchain":
 				print(self.blog)

@@ -9,12 +9,17 @@ def isDebug():
 
 TIMEOUT = .5 if isDebug() else 3
 
+colors = [eval(f"Fore.{x.upper()}") for x in ("cyan", "green", "yellow", "blue", "magenta", "white")]
 
 def debug(*args, **kwargs):
-	level = kwargs.get("level",1)		
+	try:
+		pid = int(args[0])
+	except ValueError:
+		pid = -1
+	level = kwargs.get("level",1)
 	kwargs.pop("level", None)
 	if isDebug() and level <= verbosityLevel():
-		print(f"{Fore.RED}DEBUG:{Style.RESET_ALL}",Style.DIM,*args, **kwargs,end=f"{Style.RESET_ALL}\n")
+		print(f"{Fore.RED}DEBUG:{Style.RESET_ALL}",Style.DIM+colors[pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
 
 def error(*args, **kwargs):
 	print(f"{Fore.WHITE}{Back.RED}ERROR:",Fore.WHITE,*args, **kwargs,end=f"{Style.RESET_ALL}\n")

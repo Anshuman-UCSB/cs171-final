@@ -25,6 +25,7 @@ class MultiPaxos:
 
 		threading.Thread(target=self.handleMessages).start()
 		threading.Thread(target=self.handleQueue).start()
+		threading.Thread(target=self.handleRecieve).start()
 
 	def incrementBallot(self):
 		self.ballot_num[1] += 1
@@ -42,6 +43,7 @@ class MultiPaxos:
 			return True		# just to keep other logic clean, and save messages
 		self.heartbeats-={dest}
 		self.net.send(dest, ("PING",))
+		debug(self.pid, "send PING to", dest)
 		start_time = time.time()
 		while time.time() < start_time() + TIMEOUT:
 			if dest in self.heartbeats:
@@ -60,12 +62,30 @@ class MultiPaxos:
 					print('DECIDED')
 					print("accepted!")
 					self.decide()
-				print(self.acceptances)
+
+	def handleRecieve(self):
+		while True:
+			if not isDebug():
+				time.sleep(3)
+
+			content,sender = self.net.pop_recv_message()
+			match content[0]:
+				case "PROMISE":
+					self.recieve_promise(content, sender)
+				case "ACCEPTED":
+					self.recieve_accepted(content, sender)
+				case _:
+					error(self.pid,"Unknown message recieved:",content,"from",sender)
+
 
 	def handleMessages(self):
 		while True:
 			if not isDebug():
 				time.sleep(3)
+			
+			if self.leader == self.pid and self.queue and self.accept_val == None:
+				...
+
 			content,sender = self.net.pop_message()
 			# with self.process_lock:
 			match content[0]:
@@ -73,10 +93,12 @@ class MultiPaxos:
 					self.promise(content, sender)
 				case "PROMISE":
 					self.recieve_promise(content, sender)
+					error(self.pid, "should not be in this queue")
 				case "ACCEPT":
 					self.accepted(content, sender)
 				case "ACCEPTED":
 					self.recieve_accepted(content, sender)
+					error(self.pid, "should not be in this queue")
 				case "PING":
 					self.net.send(sender, ("PONG",))
 				case "PONG":
@@ -84,9 +106,11 @@ class MultiPaxos:
 				case "ENQUEUE":
 					self.addToQueue(content[1])
 				case "DECIDE":
+					print("CONTENT",content)
 					self.blog.add(*content[1])
 				case _:
 					error(self.pid,"Unknown message recieved:",content,"from",sender)
+			# note this is not the only place promises are handled
 
 	def prepare(self):
 		"""
@@ -98,6 +122,7 @@ class MultiPaxos:
 
 		self.promises = 0
 		self.net.broadcast(("PREPARE", self.ballot_num))
+		debug(self.pid, "broadcast PREPARE", self.ballot_num, level = 1)
 		
 		start_time = time.time()
 		while time.time() <= start_time + TIMEOUT:
@@ -122,12 +147,14 @@ class MultiPaxos:
 				while self.queue:
 					self.net.send(sender,("ENQUEUE",self.queue.pop(0)))
 			self.net.send(sender, ("PROMISE", self.accept_val, self.accept_num))
+			debug(self.pid, "PROMISE to", sender, self.accept_val, self.accept_num, level = 1)
 			
 	def recieve_promise(self, content, sender):
 		"receive promise messages from the leader election phase"
 		self.promises += 1
 		if self.accept_num is None or (content[2] is not None and self.accept_num < content[2]):
 			self.accept_val, self.accept_num = content[1:]
+		debug("received PROMISE", self.ballot_num, "of", self.promises, level = 1)
 
 	def accept(self, add_val=None):
 		"broadcast accept message with value"
@@ -139,13 +166,13 @@ class MultiPaxos:
 			self.acceptances = 0
 			self.net.broadcast(("ACCEPT", val, self.ballot_num))
 
-			start_time = time.time()
+			start_time = time.time() 
 			while time.time() <= start_time + TIMEOUT:
 				if self.acceptances >= 3:
 					break
 			if self.acceptances < 3:
 				debug(self.pid,"- NOT ENOUGH ACCEPTANCES (",self.acceptances,")")
-				self.queue.insert(0, val)
+				# self.queue.insert(0, val) # message just gets lost
 				return False
 			else:
 				debug(self.pid,"was accepted")
@@ -159,16 +186,21 @@ class MultiPaxos:
 		if self.ballot_num <= content[2]:
 			self.ballot_num = content[2]
 
-			self.leader = sender
-			self.acceptances = -5
-			self.promises = -5
+			if self.leader != sender:
+				self.leader = sender
+				self.acceptances = -5
+				self.promises = -5
 
 			self.accept_num = self.ballot_num
 			self.accept_val = content[1]
-			self.net.broadcast(("ACCEPTED",self.ballot_num))
+			self.net.send(sender, ("ACCEPTED",self.ballot_num))
+			debug(self.pid, "ACCEPTED", self.ballot_num, "of",sender,level = 1)
+		else:
+			debug(self.pid, "not ACCEPTED, I have higher ballot number", self.ballot_num, content[2], level = 1)
 	
 	def decide(self):
 		self.net.broadcast(("DECIDE",self.accept_val, self.accept_num))
+		debug(self.pid, "broadcast DECIDE with", self.accept_val, self.accept_num, level = 1)
 
 	def push_value(self, val):
 		if self.leader == None or self.checkHeartbeat(self.leader) == False:
@@ -185,5 +217,29 @@ class MultiPaxos:
 		return True
 
 	def recieve_accepted(self, content, sender):
+		debug(self.pid, "maybe ACCEPTED from",str(sender)+", now at",self.acceptances, level = 1)
 		if self.ballot_num == content[1]:
 			self.acceptances += 1
+			debug(self.pid, "recieved ACCEPTED from",str(sender)+", now at",self.acceptances, level = 1)
+
+	def __str__(self):
+		out = '[\n'
+		
+		out += f'\tPID: {self.pid}\n'
+		out += f'\tLeader: {self.leader}\n'
+		out += f'\tQueue: {self.queue}\n'
+		out += f'\tBallot Num: {self.ballot_num}\n'
+		out += f'\tAccept Val: {self.accept_val}\n'
+		out += f'\tAccept Num: {self.accept_num}\n'
+		out += f'\tNum Promises: {self.promises}\n'
+		out += f'\tNum Acceptances: {self.acceptances}\n'
+		out += f'\tHeartbeats: {self.heartbeats}\n'
+
+		out += ']'
+		return out
+
+
+if __name__ == "__main__":
+	mp = MultiPaxos(Network(0), 0, Blog())
+	print(mp)
+		

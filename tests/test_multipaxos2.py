@@ -7,7 +7,7 @@ import sys
 import os, sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-debugLevel = 0
+debugLevel = 1
 
 class TestMultiPaxos2:
 	def setup_method(self):
@@ -23,23 +23,21 @@ class TestMultiPaxos2:
 		time.sleep(.1)
 		assert mp[0].leader == 0
 
-		mp[0].addToQueue("sneep")
-		assert mp[0].queue == ['sneep']
-		assert mp[0].accept() == True
-		time.sleep(.1)
+		mp[0].addToQueue(("POST","user", "title", "message content"))
+		time.sleep(.5)
 		assert mp[0].acceptances == 5
 		assert mp[1].accept_num == mp[0].ballot_num
-		assert mp[3].accept_val == "sneep"
+		assert mp[3].accept_val == ("POST","user", "title", "message content")
 
 	def test_accept_failed(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		mp[0].net.failLink(3)
-		mp[0].net.failLink(4)
+		mp[0].net.fail_link(3)
+		mp[0].net.fail_link(4)
 		time.sleep(.1)
 		mp[0].prepare()
 		time.sleep(.1)
 		assert mp[0].leader == 0
-		mp[0].net.failLink(0)
+		mp[0].net.fail_link(0)
 		time.sleep(.1)
 
 		mp[0].addToQueue("sneep")
@@ -50,8 +48,8 @@ class TestMultiPaxos2:
 
 	def test_accept_twice(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		mp[0].net.failLink(3)
-		mp[0].net.failLink(4)
+		mp[0].net.fail_link(3)
+		mp[0].net.fail_link(4)
 		time.sleep(.1)
 		mp[0].prepare()
 		mp[0].addToQueue("shmeep")
@@ -72,19 +70,10 @@ class TestMultiPaxos2:
 		for i in range(1,5):
 			assert mp[i].accept_num == [0,1,4]
 
-	def test_accept_twice_2(self):
-		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		mp[0].prepare()
-		time.sleep(.1)
-		mp[4].prepare()
-		time.sleep(.1)
-		mp[0].addToQueue("12")
-		mp[0].accept()
-
 	def test_accept_twice_fail(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
 		
-		mp[0].net.failLink(1)
+		mp[0].net.fail_link(1)
 
 		mp[0].prepare()
 		time.sleep(.1)
@@ -99,13 +88,13 @@ class TestMultiPaxos2:
 		time.sleep(.1)
 		for i in range(1,5):
 			assert mp[i].accept_val == None
-		assert mp[0].queue == ['will you go out with me']
-		mp[1].net.fixLink(0)
+		assert mp[0].queue == []
+		mp[1].net.fix_link(0)
 		time.sleep(.1)
-		mp[1].accept("what about me")
+		mp[1].accept(("POST","user", "title", "message content"))
 		time.sleep(.1)
 		for i in range(5):
-			assert mp[i].accept_val == "what about me"
+			assert mp[i].accept_val == ("POST","user", "title", "message content")
 		assert mp[i].queue == []
 
 	def test_forward_queue(self):

@@ -42,8 +42,8 @@ class TestMultiPaxos:
 		
 	def test_3_promises(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		mp[2].net.failLink(1)
-		mp[2].net.failLink(4)
+		mp[2].net.fail_link(1)
+		mp[2].net.fail_link(4)
 		assert mp[2].promises == 0
 		time.sleep(.1)
 		mp[2].prepare()
@@ -53,9 +53,9 @@ class TestMultiPaxos:
 
 	def test_2_promises(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		mp[4].net.failLink(1)
-		mp[4].net.failLink(3)
-		mp[4].net.failLink(4)
+		mp[4].net.fail_link(1)
+		mp[4].net.fail_link(3)
+		mp[4].net.fail_link(4)
 		assert mp[4].promises == 0
 		time.sleep(.1)
 		mp[4].prepare()
@@ -76,10 +76,10 @@ class TestMultiPaxos:
 	def test_older_leader(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
 		assert mp[2].promises == 0
-		mp[2].net.failLink(3)
+		mp[2].net.fail_link(3)
 		mp[3].prepare()
 		time.sleep(0.1)
-		mp[2].net.fixLink(3)
+		mp[2].net.fix_link(3)
 		mp[2].prepare()
 		time.sleep(0.1)
 		assert mp[3].leader == 3
@@ -87,9 +87,9 @@ class TestMultiPaxos:
 
 	def test_two_leaders(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		mp[0].net.failLink(3)
-		mp[0].net.failLink(4)
-		mp[4].net.failLink(1)
+		mp[0].net.fail_link(3)
+		mp[0].net.fail_link(4)
+		mp[4].net.fail_link(1)
 		time.sleep(.1)
 		mp[0].prepare()
 		assert mp[2].ballot_num == mp[0].ballot_num
