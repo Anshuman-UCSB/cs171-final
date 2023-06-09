@@ -55,35 +55,38 @@ class MultiPaxos:
 		while True:
 			time.sleep(.1)
 			if self.leader == self.pid and self.queue:
-				with self.process_lock:
-					if self.accept() == True:
-						self.decide()
+				# with self.process_lock:
+				if self.accept() == True:
+					print('DECIDED')
+					print("accepted!")
+					self.decide()
+				print(self.acceptances)
 
 	def handleMessages(self):
 		while True:
 			if not isDebug():
 				time.sleep(3)
-			with self.process_lock:
-				content,sender = self.net.pop_message()
-				match content[0]:
-					case "PREPARE":
-						self.promise(content, sender)
-					case "PROMISE":
-						self.recieve_promise(content, sender)
-					case "ACCEPT":
-						self.accepted(content, sender)
-					case "ACCEPTED":
-						self.recieve_accepted(content, sender)
-					case "PING":
-						self.net.send(sender, ("PONG",))
-					case "PONG":
-						self.updateHeartbeat(sender)
-					case "ENQUEUE":
-						self.addToQueue(content[1])
-					case "DECIDE":
-						self.blog.add(*content[1])
-					case _:
-						error(self.pid,"Unknown message recieved:",content,"from",sender)
+			content,sender = self.net.pop_message()
+			# with self.process_lock:
+			match content[0]:
+				case "PREPARE":
+					self.promise(content, sender)
+				case "PROMISE":
+					self.recieve_promise(content, sender)
+				case "ACCEPT":
+					self.accepted(content, sender)
+				case "ACCEPTED":
+					self.recieve_accepted(content, sender)
+				case "PING":
+					self.net.send(sender, ("PONG",))
+				case "PONG":
+					self.updateHeartbeat(sender)
+				case "ENQUEUE":
+					self.addToQueue(content[1])
+				case "DECIDE":
+					self.blog.add(*content[1])
+				case _:
+					error(self.pid,"Unknown message recieved:",content,"from",sender)
 
 	def prepare(self):
 		"""
@@ -114,6 +117,8 @@ class MultiPaxos:
 			self.ballot_num = content[1]
 			if sender != self.pid:
 				self.leader = None
+				self.acceptances = -5
+				self.promises = -5
 				while self.queue:
 					self.net.send(sender,("ENQUEUE",self.queue.pop(0)))
 			self.net.send(sender, ("PROMISE", self.accept_val, self.accept_num))
@@ -153,7 +158,11 @@ class MultiPaxos:
 		"send accepted message back to leader"
 		if self.ballot_num <= content[2]:
 			self.ballot_num = content[2]
+
 			self.leader = sender
+			self.acceptances = -5
+			self.promises = -5
+
 			self.accept_num = self.ballot_num
 			self.accept_val = content[1]
 			self.net.broadcast(("ACCEPTED",self.ballot_num))

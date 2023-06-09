@@ -28,11 +28,11 @@ class TestMultiPaxos3:
 	def test_simple_decide(self):
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
 		
-		mp[0].prepare()
-		mp[0].accept(add_val = "TEMP")
+		assert mp[0].prepare() == True
+		mp[0].addToQueue("TEMP")
+		time.sleep(.5)
 		for i in range(5):
-			assert mp[i].accept_val == "TEMP"
-
+			assert mp[i].accept_val == "TEMP", f"{i} failed"
 
 if __name__ == '__main__':
 	try:
