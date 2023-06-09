@@ -17,6 +17,7 @@ class MultiPaxos:
 		self.accept_num = None
 		
 		self.promises = 0
+		self.queue = []
 
 		threading.Thread(target=self.handleMessages).start()
 
@@ -35,17 +36,16 @@ class MultiPaxos:
 			content,sender = self.net.pop_message()
 			match content[0]:
 				case "PREPARE":
-					if self.ballot_num <= content[1]:
-						self.ballot_num = content[1]
-						self.net.send(sender, ("PROMISE", self.accept_num, self.accept_val))
+					self.promise(content, sender)
 				case "PROMISE":
-					self.promises += 1
-					if self.accept_num and self.accept_num < content[2]:
-						self.accept_val, self.accept_num = content[1:]
+					self.recieve_promise(content, sender)
 				case _:
 					error(self.pid,"Unknown message recieved:",content,"from",sender)
 
 	def prepare(self):
+		"""
+		can be used like while mp.prepare() == False: print("retrying")
+		"""
 		# TODO: handle if leader exists
 		self.incrementBallot()
 
@@ -63,7 +63,19 @@ class MultiPaxos:
 			debug(self.pid,"became leader")
 			self.leader = self.pid
 			return True
+
+	def promise(self, content, sender):
+		if self.ballot_num <= content[1]:
+			self.ballot_num = content[1]
+			self.net.send(sender, ("PROMISE", self.accept_num, self.accept_val))
 			
+	def recieve_promise(self, content,sender):
+		self.promises += 1
+		if self.accept_num and self.accept_num < content[2]:
+			self.accept_val, self.accept_num = content[1:]
+
+	def accept(self):
+		...
 
 if __name__ == "__main__":
 	b0 = Blog()
