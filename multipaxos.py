@@ -17,11 +17,14 @@ class MultiPaxos:
 		self.accept_val = None
 		self.accept_num = None
 		
+		self.process_lock = threading.Lock()
+
 		self.promises = 0
 		self.acceptances = 0
 		self.heartbeats = set()
 
 		threading.Thread(target=self.handleMessages).start()
+		threading.Thread(target=self.handleQueue).start()
 
 	def incrementBallot(self):
 		self.ballot_num[1] += 1
@@ -35,6 +38,8 @@ class MultiPaxos:
 		self.queue.append(val)
 
 	def checkHeartbeat(self, dest):
+		if dest == self.pid:
+			return True		# just to keep other logic clean, and save messages
 		self.heartbeats-={dest}
 		self.net.send(dest, ("PING",))
 		start_time = time.time()
@@ -44,31 +49,41 @@ class MultiPaxos:
 		return dest in self.heartbeats
 
 	def updateHeartbeat(self, sender):
-		self.heartbeats|={sender}
+		self.heartbeats |= {sender}
+
+	def handleQueue(self):
+		while True:
+			time.sleep(.1)
+			if self.leader == self.pid and self.queue:
+				with self.process_lock:
+					if self.accept() == True:
+						self.decide()
 
 	def handleMessages(self):
 		while True:
 			if not isDebug():
 				time.sleep(3)
-
-			content,sender = self.net.pop_message()
-			match content[0]:
-				case "PREPARE":
-					self.promise(content, sender)
-				case "PROMISE":
-					self.recieve_promise(content, sender)
-				case "ACCEPT":
-					self.accepted(content, sender)
-				case "ACCEPTED":
-					self.recieve_accepted(content, sender)
-				case "PING":
-					self.net.send(sender, ("PONG",))
-				case "PONG":
-					self.updateHeartbeat(sender)
-				case "ENQUEUE":
-					self.addToQueue(content[1])
-				case _:
-					error(self.pid,"Unknown message recieved:",content,"from",sender)
+			with self.process_lock:
+				content,sender = self.net.pop_message()
+				match content[0]:
+					case "PREPARE":
+						self.promise(content, sender)
+					case "PROMISE":
+						self.recieve_promise(content, sender)
+					case "ACCEPT":
+						self.accepted(content, sender)
+					case "ACCEPTED":
+						self.recieve_accepted(content, sender)
+					case "PING":
+						self.net.send(sender, ("PONG",))
+					case "PONG":
+						self.updateHeartbeat(sender)
+					case "ENQUEUE":
+						self.addToQueue(content[1])
+					case "DECIDE":
+						self.blog.add(*content[1])
+					case _:
+						error(self.pid,"Unknown message recieved:",content,"from",sender)
 
 	def prepare(self):
 		"""
@@ -97,9 +112,10 @@ class MultiPaxos:
 		"send promise messages back to leader"
 		if self.ballot_num <= content[1]:
 			self.ballot_num = content[1]
-			self.leader = None
-			while self.queue:
-				self.net.send(sender,("ENQUEUE",self.queue.pop(0)))
+			if sender != self.pid:
+				self.leader = None
+				while self.queue:
+					self.net.send(sender,("ENQUEUE",self.queue.pop(0)))
 			self.net.send(sender, ("PROMISE", self.accept_val, self.accept_num))
 			
 	def recieve_promise(self, content, sender):
@@ -128,7 +144,6 @@ class MultiPaxos:
 				return False
 			else:
 				debug(self.pid,"was accepted")
-				self.leader = self.pid
 				return True
 		else:
 			error(self.pid, "IS NOT LEADER,", self.leader, "IS")
@@ -138,9 +153,27 @@ class MultiPaxos:
 		"send accepted message back to leader"
 		if self.ballot_num <= content[2]:
 			self.ballot_num = content[2]
+			self.leader = sender
 			self.accept_num = self.ballot_num
 			self.accept_val = content[1]
 			self.net.broadcast(("ACCEPTED",self.ballot_num))
+	
+	def decide(self):
+		self.net.broadcast(("DECIDE",self.accept_val, self.accept_num))
+
+	def push_value(self, val):
+		if self.leader == None or self.checkHeartbeat(self.leader) == False:
+			if self.prepare() == False:
+				return False		# wasn't able to be leader, tell owner to retry
+		# some leader is defined right now
+		if self.leader == self.pid:
+			self.addToQueue(val)
+		elif self.leader != self.pid:
+			# send to leader's queue
+			self.net.send(self.leader, ("ENQUEUE", val))
+		else:
+			error("THIS SHOULD NOT HAPPEN")
+		return True
 
 	def recieve_accepted(self, content, sender):
 		if self.ballot_num == content[1]:
