@@ -19,6 +19,20 @@ class TestMultiPaxos3:
 
 	def test_transfer_queue(self):
 		...
+		
+	def test_accept_somehow(self):
+		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
+		
+		...
+
+	def test_simple_decide(self):
+		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
+		
+		mp[0].prepare()
+		mp[0].accept(add_val = "TEMP")
+		for i in range(5):
+			assert mp[i].accept_val == "TEMP"
+
 
 if __name__ == '__main__':
 	try:
