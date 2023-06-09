@@ -17,6 +17,7 @@ class MultiPaxos:
 		self.accept_num = None
 		
 		self.promises = 0
+		self.acceptances = 0
 		self.queue = []
 
 		threading.Thread(target=self.handleMessages).start()
@@ -44,6 +45,8 @@ class MultiPaxos:
 					self.recieve_promise(content, sender)
 				case "ACCEPT":
 					self.accepted(content, sender)
+				case "ACCEPTED":
+					self.recieve_accepted(content, sender)
 				case _:
 					error(self.pid,"Unknown message recieved:",content,"from",sender)
 
@@ -74,33 +77,48 @@ class MultiPaxos:
 		"send promise messages back to leader"
 		if self.ballot_num <= content[1]:
 			self.ballot_num = content[1]
-			self.net.send(sender, ("PROMISE", self.accept_num, self.accept_val))
+			self.leader = None
+			self.net.send(sender, ("PROMISE", self.accept_val, self.accept_num))
 			
 	def recieve_promise(self, content, sender):
 		"receive promise messages from the leader election phase"
 		self.promises += 1
-		if self.accept_num and self.accept_num < content[2]:
+		if self.accept_num is None or (content[2] is not None and self.accept_num < content[2]):
 			self.accept_val, self.accept_num = content[1:]
 
-	def accept(self):
+	def accept(self, add_val=None):
 		"broadcast accept message with value"
-		assert self.accept_val or self.queue, "calling accept but no value to propose" 
-		val = self.accept_val or self.queue.pop(0)
+		if self.leader == self.pid:
+			if add_val is not None:
+				self.queue.append(add_val)
+			assert self.accept_val or self.queue, "calling accept but no value to propose" 
+			val = self.accept_val or self.queue.pop(0)
+			self.acceptances = 0
+			self.net.broadcast(("ACCEPT", val, self.ballot_num))
+
+			start_time = time.time()
+			while time.time() <= start_time + TIMEOUT:
+				if self.acceptances >= 3:
+					break
+			if self.acceptances < 3:
+				debug(self.pid,"- NOT ENOUGH ACCEPTANCES (",self.acceptances,")")
+				return False
+			else:
+				debug(self.pid,"was accepted")
+				self.leader = self.pid
+				return True
+		else:
+			error(self.pid,"is not the leader")
 		
-		self.net.broadcast(("ACCEPT", val, self.ballot_num))
 	
 	def accepted(self, content, sender):
 		"send accepted message back to leader"
-		if self.ballot_num < content[2]:
-			self.ballot_num = content[0]
-			self.net.broadcast(("ACCEPTED",))
+		if self.ballot_num <= content[2]:
+			self.ballot_num = content[2]
+			self.accept_num = self.ballot_num
+			self.accept_val = content[1]
+			self.net.broadcast(("ACCEPTED",self.ballot_num))
 
-	
-if __name__ == "__main__":
-	b0 = Blog()
-	mp0 = MultiPaxos(Network(0), 0, b0)
-	b1 = Blog()
-	mp1 = MultiPaxos(Network(1), 1, b1)
-	b2 = Blog()
-	mp2 = MultiPaxos(Network(2), 2, b2)
-	mp0.prepare()
+	def recieve_accepted(self, content, sender):
+		if self.ballot_num == content[1]:
+			self.acceptances += 1

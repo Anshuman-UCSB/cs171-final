@@ -121,6 +121,7 @@ if __name__ == "__main__":
 	bc.add("COMMENT", "biggergig", "hello", "comment #2 on hello")
 	bc.blog()
 	bc.view("cdese")
+	print("here")
 	bc.view("biggergig")
 	
 	bc.read("hello")
