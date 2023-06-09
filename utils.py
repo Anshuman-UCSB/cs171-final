@@ -7,7 +7,7 @@ import re
 def isDebug():
 	return "debug" in sys.argv
 
-TIMEOUT = 1.5 if isDebug() else 10
+TIMEOUT = .5 if isDebug() else 3
 
 
 def debug(*args, **kwargs):

@@ -34,6 +34,7 @@ class Network:
 			with self.messageLock:
 				if message == "fail":
 					self.canSend[address[1]-self.base_port] = False
+					debug(self.id, "recieved fail link from", address[1]-self.base_port, self.canSend)
 				elif message == "fix":
 					self.canSend[address[1]-self.base_port] = True
 				else:

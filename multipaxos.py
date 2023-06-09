@@ -30,12 +30,13 @@ class MultiPaxos:
 
 	def handleMessages(self):
 		while True:
-			time.sleep(.1 if isDebug() else 3)
+			time.sleep(.01 if isDebug() else 3)
 
 			content,sender = self.net.pop_message()
 			match content[0]:
 				case "PREPARE":
 					if self.ballot_num <= content[1]:
+						self.ballot_num = content[1]
 						self.net.send(sender, ("PROMISE", self.accept_num, self.accept_val))
 				case "PROMISE":
 					self.promises += 1
