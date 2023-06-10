@@ -44,7 +44,7 @@ class MultiPaxos:
 			return True		# just to keep other logic clean, and save messages
 		self.heartbeats-={dest}
 		self.net.send(dest, ("PING",))
-		debug(self.pid, "send PING to", dest)
+		debug(self.pid, "send PING to", dest, level = 1)
 		start_time = time.time()
 		while time.time() < start_time() + TIMEOUT:
 			if dest in self.heartbeats:
@@ -94,14 +94,15 @@ class MultiPaxos:
 					self.promise(content, sender)
 				case "PROMISE":
 					self.recieve_promise(content, sender)
-					error(self.pid, "should not be in this queue")
+					error(self.pid, content, "should not be in this queue")
 				case "ACCEPT":
 					self.accepted(content, sender)
 				case "ACCEPTED":
 					self.recieve_accepted(content, sender)
-					error(self.pid, "should not be in this queue")
+					error(self.pid, content, "should not be in this queue")
 				case "PING":
 					self.net.send(sender, ("PONG",))
+					debug(self.pid, "send PONG to", sender, level = 1)
 				case "PONG":
 					self.updateHeartbeat(sender)
 				case "ENQUEUE":
@@ -111,7 +112,6 @@ class MultiPaxos:
 					self.blog.add(*content[1])
 				case _:
 					error(self.pid,"Unknown message recieved:",content,"from",sender)
-			# note this is not the only place promises are handled
 
 	def prepare(self):
 		"""
@@ -149,6 +149,8 @@ class MultiPaxos:
 					self.net.send(sender,("ENQUEUE",self.queue.pop(0)))
 			self.net.send(sender, ("PROMISE", self.accept_val, self.accept_num))
 			debug(self.pid, "PROMISE to", sender, self.accept_val, self.accept_num, level = 1)
+		else:
+			debug(self.pid, "did not send PROMISE, ballot number is too low", content[1], self.ballot_num, level = 1)
 			
 	def recieve_promise(self, content, sender):
 		"receive promise messages from the leader election phase"

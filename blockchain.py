@@ -114,15 +114,15 @@ class Blog:
 	
 if __name__ == "__main__":
 	bc = Blog()
-	bc.add("POST", "biggergig", "hello", "this is the content")
-	bc.add("POST", "biggergig", "hello2", "this is the content")
-	bc.add("COMMENT", "biggergig", "hello", "comment #1 on hello")
-	bc.add("POST", "cdese", "hello3", "this is the content")
-	bc.add("COMMENT", "biggergig", "hello", "comment #2 on hello")
+	bc.add("POST", "username", "hello", "this is the content")
+	bc.add("POST", "username", "hello2", "this is the content")
+	bc.add("COMMENT", "username", "hello", "comment #1 on hello")
+	bc.add("POST", "other name", "hello3", "this is the content")
+	bc.add("COMMENT", "username", "hello", "comment #2 on hello")
 	bc.blog()
-	bc.view("cdese")
+	bc.view("other name")
 	print("here")
-	bc.view("biggergig")
+	bc.view("username")
 	
 	bc.read("hello")
 	bc.read("NaN")

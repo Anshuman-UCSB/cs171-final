@@ -29,10 +29,10 @@ class TestMultiPaxos3:
 		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
 		
 		assert mp[0].prepare() == True
-		mp[0].addToQueue(("POST","user", "title", "message content"))
+		mp[0].addToQueue(("POST","user", "title", "test_simple_decide"))
 		time.sleep(.5)
 		for i in range(5):
-			assert mp[i].accept_val == ("POST","user", "title", "message content"), f"{i} failed"
+			assert mp[i].accept_val == ("POST","user", "title", "test_simple_decide"), f"{i} failed"
 		time.sleep(.5)
 		assert len(mp[0].blog.blocks) == 1
 
