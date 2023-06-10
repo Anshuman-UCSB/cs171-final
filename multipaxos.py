@@ -6,7 +6,7 @@ from blockchain import Blog
 from utils import *
 
 class MultiPaxos:
-	def __init__(self, net, pid, blog):
+	def __init__(self, net, pid, blog, disable_queue = False):
 		self.net = net
 		self.pid = pid
 		self.blog = blog
@@ -24,8 +24,9 @@ class MultiPaxos:
 		self.heartbeats = set()
 
 		threading.Thread(target=self.handleMessages).start()
-		threading.Thread(target=self.handleQueue).start()
 		threading.Thread(target=self.handleRecieve).start()
+		if not disable_queue:
+			threading.Thread(target=self.handleQueue).start()
 
 	def incrementBallot(self):
 		self.ballot_num[1] += 1
@@ -106,7 +107,7 @@ class MultiPaxos:
 				case "ENQUEUE":
 					self.addToQueue(content[1])
 				case "DECIDE":
-					print("CONTENT",content)
+					print("DECIDING ON",content)
 					self.blog.add(*content[1])
 				case _:
 					error(self.pid,"Unknown message recieved:",content,"from",sender)

@@ -7,14 +7,12 @@ import os, sys
 
 
 mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-mp[0].prepare()
+q = [("POST","user", "title", f"message content {i}") for i in range(5)]
+for m in q:
+	mp[0].addToQueue(m)
+assert mp[0].queue == q
+mp[2].prepare()
 time.sleep(.1)
-assert mp[0].leader == 0
-
-mp[0].addToQueue(("POST","user", "title", "message content"))
-print(mp[0].acceptances)
-assert mp[0].acceptances >= 3
-print(mp[0].acceptances)
-assert mp[1].accept_num == mp[0].ballot_num
-assert mp[3].accept_val == ("POST","user", "title", "message content")
-print("DONE")
+assert mp[2].leader == 2
+assert mp[2].queue == q
+assert mp[0].queue == []
