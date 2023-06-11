@@ -91,7 +91,6 @@ class MultiPaxos:
 					case "QUERY":
 						self.data(content, sender)
 					case "DATA":
-						print("ASDFASDF")
 						self.receive_data(content, sender)
 					case _:
 						error(self.pid,"Unknown message received:",content,"from",sender)
@@ -140,6 +139,7 @@ class MultiPaxos:
 		# assert self.ballot_num[0] == content[1][0], "received data for wrong ballot num"
 		self.blog.add(content[2].OP, content[2].username, content[2].title, content[2].content)
 		self.incrementDepth()
+		self.caughtup = True
 
 	def catchup(self, content, sender):
 		self.debug("STARTING CATCHUP", content, sender)
