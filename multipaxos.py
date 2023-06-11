@@ -9,13 +9,15 @@ from colorama import Style
 colors = [eval(f"Fore.{x.upper()}") for x in ("cyan", "green", "yellow", "blue", "magenta", "white")]
 
 class MultiPaxos:
-	def __init__(self, net, pid, blog, debug_print = False):
+	def __init__(self, net, pid, blog, debug_print = False, use_queue = True):
 		self.net = net
 		self.pid = pid
 		self.blog = blog
 		self.leader = None
+
 		self.queue = []
 		self.queueLock = threading.Lock()
+		self.use_queue = use_queue
 
 		self.isDebug = debug_print or isDebug()
 		self.TIMEOUT = 0.5 if self.isDebug else 3
@@ -28,6 +30,7 @@ class MultiPaxos:
 		self.acceptances = 0
 		self.heartbeats = set()
 
+		threading.Thread(target=self.handleQueue).start()
 		threading.Thread(target=self.handleMessages).start()
 		threading.Thread(target=self.handleReceives).start()
 
@@ -53,6 +56,17 @@ class MultiPaxos:
 		self.ballot_num[2]=0
 		self.accept_num = None
 		self.accept_val = None
+
+	def handleQueue(self):
+		while self.use_queue:
+			if self.queue:
+				if self.leader == self.pid:
+					self.accept() and self.decide()
+				elif self.leader is None or self.checkHeartbeat(self.leader) == False:
+					self.prepare() and self.accept() and self.decide()
+				else:
+					self.net.send(self.leader, ("ENQUEUE", self.popQueue()))
+			time.sleep(.1)
 
 	def handleReceives(self):
 		while True:

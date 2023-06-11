@@ -19,7 +19,7 @@ class TestDecide:
 	# 	assert sys.argv.pop(-1) == "debug"
 		
 	def test_decide_success(self):
-		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
+		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True, use_queue=False) for i in range(5)]
 		mp[0].ballot_num = [4,8,1]
 		mp[0].accept_val = ("POST", "username", "Title 1==2", "content of post (truth)")
 		mp[0].decide()

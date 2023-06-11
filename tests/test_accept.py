@@ -19,7 +19,7 @@ class TestAccept:
 	# 	assert sys.argv.pop(-1) == "debug"
 		
 	def test_accept_success(self):
-		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
+		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True, use_queue=False) for i in range(5)]
 		mp[0].prepare()
 		time.sleep(.1)
 		assert mp[0].leader == 0
@@ -33,7 +33,7 @@ class TestAccept:
 		assert mp[4].leader == 0
 		
 	def test_accept_fail(self):
-		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
+		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True, use_queue=False) for i in range(5)]
 		mp[0].prepare()
 		time.sleep(.1)
 		assert mp[0].leader == 0
