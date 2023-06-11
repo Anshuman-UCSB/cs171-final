@@ -29,6 +29,7 @@ class MultiPaxos:
 		self.promises = 0
 		self.acceptances = 0
 		self.heartbeats = set()
+		self.caughtup = False
 
 		threading.Thread(target=self.handleQueue).start()
 		threading.Thread(target=self.handleMessages).start()
@@ -65,7 +66,7 @@ class MultiPaxos:
 				elif self.leader is None or self.checkHeartbeat(self.leader) == False:
 					self.prepare() and self.accept() and self.decide()
 				else:
-					self.net.send(self.leader, ("ENQUEUE", self.popQueue()))
+					self.net.send(self.leader, ("ENQUEUE", self.ballot_num, self.popQueue()))
 			time.sleep(.1)
 
 	def handleReceives(self):
@@ -74,20 +75,29 @@ class MultiPaxos:
 				time.sleep(3)
 			
 			content,sender = self.net.pop_recv_message()
-			self.debug("received",content, sender)
-			match content[0]:
-				case "PROMISE":
-					self.receive_promise(content, sender)
-				case "ACCEPTED":
-					self.receive_accepted(content, sender)
-				case "DECIDE":
-					self.receive_decide(content, sender)
-				case "PING":
-					self.pong(content, sender)
-				case "PONG":
-					self.receive_pong(content, sender)
-				case _:
-					error(self.pid,"Unknown message received:",content,"from",sender)
+			if content[1][0] == self.ballot_num[0] or content[1] in ("OUTDATED",):
+				self.debug("received",content, sender)
+				match content[0]:
+					case "PROMISE":
+						self.receive_promise(content, sender)
+					case "ACCEPTED":
+						self.receive_accepted(content, sender)
+					case "DECIDE":
+						self.receive_decide(content, sender)
+					case "PING":
+						self.pong(content, sender)
+					case "PONG":
+						self.receive_pong(content, sender)
+					case "QUERY":
+						self.data(content, sender)
+					case _:
+						error(self.pid,"Unknown message received:",content,"from",sender)
+			elif content[1][0] < self.ballot_num[0]:
+				# they are behind
+				self.net.send(sender, ("OUTDATED", self.ballot_num))
+			else:
+				# we are behind
+				self.catchup(content, sender)
 
 	def handleMessages(self):
 		while True:
@@ -96,15 +106,37 @@ class MultiPaxos:
 			
 			content,sender = self.net.pop_message()
 			self.debug("received",content, sender)
-			match content[0]:
-				case "PREPARE":
-					self.promise(content, sender)
-				case "ACCEPT":
-					self.accepted(content, sender)
-				case "ENQUEUE":
-					self.addQueue(content[1])
-				case _:
-					error(self.pid,"Unknown message received:",content,"from",sender)
+			if content[1][0] == self.ballot_num[0] or content[1] in ("OUTDATED",):
+				match content[0]:
+					case "PREPARE":
+						self.promise(content, sender)
+					case "ACCEPT":
+						self.accepted(content, sender)
+					case "ENQUEUE":
+						self.addQueue(content[2])
+					case "OUTDATED":
+						self.catchup(content, sender)
+					case _:
+						error(self.pid,"Unknown message received:",content,"from",sender)
+			elif content[1][0] < self.ballot_num[0]:
+				# they are behind
+				self.debug("receieved outdated message", content, sender)
+				self.net.send(sender, ("OUTDATED", self.ballot_num))
+			else:
+				# we are behind
+				self.catchup(content, sender)
+
+	def data(self, content, sender):
+		assert len(self.blog.blocks)>content[2]
+		self.net.send(sender, ("DATA", self.ballot_num, self.blog.blocks[content[2]].T))
+
+	def catchup(self, content, sender):
+		while self.ballot_num[0] < content[1][0]:
+			self.caughtup = False
+			self.net.send(sender, ("QUERY", self.ballot_num, self.ballot_num[0]))
+			start_time = time.time()
+			while time.time() < start_time + 3 and self.caughtup == False:
+				time.sleep(.1)
 
 	def pong(self, content, sender):
 		# maybe check depth / ballot num?
@@ -150,7 +182,7 @@ class MultiPaxos:
 			self.net.send(sender, ("PROMISE", self.ballot_num, self.accept_num, self.accept_val))
 			if sender != self.pid:
 				for message in self.queue:
-					self.net.send(sender, ("ENQUEUE", message))
+					self.net.send(sender, ("ENQUEUE", self.ballot_num, message))
 				with self.queueLock:
 					self.queue = []
 
@@ -195,13 +227,13 @@ class MultiPaxos:
 			self.leader = sender
 			self.accept_num = content[1]
 			self.accept_val = content[2]
-			self.net.send(sender, ("ACCEPTED", self.accept_num, self.accept_val))
+			self.net.send(sender, ("ACCEPTED", self.ballot_num, self.accept_num, self.accept_val))
 	
 	def receive_accepted(self, content, sender):
 		if self.leader != self.pid:
 			error("Received accepted, not leader")
 			return False
-		if content[1] == self.ballot_num:
+		if content[2] == self.ballot_num:
 			self.acceptances += 1
 		else:
 			error("ACCEPTANCE WITH WRONG BALLOT NUM")

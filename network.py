@@ -50,7 +50,7 @@ class Network:
 				self.canSend[address[1]-self.base_port] = True
 			else:
 				if self.canSend[address[1]-self.base_port]:
-					if type(message) is tuple and message[0] in ("PROMISE", "ACCEPTED", "DECIDE", "PING", "PONG"):
+					if type(message) is tuple and message[0] in ("PROMISE", "ACCEPTED", "DECIDE", "PING", "PONG", "QUERY"):
 						with self.recvMessageLock:
 							self.recvMessages.append((message,address[1]-self.base_port))
 						debug(self.id,"Received message (R):",self.recvMessages[-1], level=3)
