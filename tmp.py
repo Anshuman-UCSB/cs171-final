@@ -6,11 +6,10 @@ import sys
 import os, sys
 
 
-mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
+mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
 mp[0].prepare()
-time.sleep(.1)
+print(mp[0].ballot_num)
+time.sleep(.2)
 assert mp[0].leader == 0
-
-mp[0].addToQueue(("POST","user", "title", "test_accept_fresh_value"))
-time.sleep(1)
-assert mp[0].acceptances >= 3
+# mp[0].queue.append("value")
+# mp[0].accept()

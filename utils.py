@@ -38,3 +38,17 @@ def verbosityLevel():
 		return int(last)
 	except:
 		return 0
+
+def log(func):
+    argnames = func.__code__.co_varnames[:func.__code__.co_argcount]
+    fname = func.__name__
+      
+    def inner_func(*args, **kwargs):
+        print(fname, "(", end = "")
+        print(', '.join( '% s = % r' % entry
+            for entry in zip(argnames, args[:len(argnames)])), end = ", ")
+        print("args =", list(args[len(argnames):]), end = ", ")
+        print("kwargs =", kwargs, end = "")
+        print(")")
+          
+    return inner_func
