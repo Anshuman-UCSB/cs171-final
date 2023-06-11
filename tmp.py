@@ -7,12 +7,10 @@ import os, sys
 
 
 mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-q = [("POST","user", "title", f"message content {i}") for i in range(5)]
-for m in q:
-	mp[0].addToQueue(m)
-assert mp[0].queue == q
-mp[2].prepare()
+mp[0].prepare()
 time.sleep(.1)
-assert mp[2].leader == 2
-assert mp[2].queue == q
-assert mp[0].queue == []
+assert mp[0].leader == 0
+
+mp[0].addToQueue(("POST","user", "title", "test_accept_fresh_value"))
+time.sleep(1)
+assert mp[0].acceptances >= 3

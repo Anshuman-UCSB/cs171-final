@@ -7,7 +7,7 @@ import sys
 import os, sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-debugLevel = 0
+debugLevel = 1
 
 class TestNetwork(unittest.TestCase):
 	def setUp(self):
@@ -17,64 +17,48 @@ class TestNetwork(unittest.TestCase):
 		assert sys.argv.pop(-1) == str(debugLevel)
 		assert sys.argv.pop(-1) == "debug"
 
-	def test_failLink(self):
-		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		assert all(mp[0].net.canSend) == True
-		mp[0].net.fail_link(2)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, False, True, True]
-		time.sleep(.1)
-		assert mp[2].net.canSend == [False, True, True, True, True]
-		mp[1].net.fail_link(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, False, False, True, True]
-		mp[0].net.fail_link(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [False, False, False, True, True]
-
-	def test_fixlink(self):
-		mp = [MultiPaxos(Network(i), i, Blog()) for i in range(5)]
-		assert all(mp[0].net.canSend) == True
-		mp[0].net.fail_link(2)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, False, True, True]
-		time.sleep(.1)
-		assert mp[2].net.canSend == [False, True, True, True, True]
-		mp[1].net.fail_link(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, False, False, True, True]
-		mp[0].net.fail_link(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [False, False, False, True, True]
-
-		mp[0].net.fix_link(1)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [False, True, False, True, True]
-		mp[0].net.fix_link(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, False, True, True]
-		mp[2].net.fix_link(0)
-		time.sleep(.1)
-		assert mp[0].net.canSend == [True, True, True, True, True]
-		assert mp[2].net.canSend == [True, True, True, True, True]
-	
 	def test_send_recv(self):
 		networks = [Network(i) for i in range(5)]
-		networks[4].send(2, 5)
-		networks[2].send(2, "world")
-		assert networks[2].pop_message() == (5,4)
-		assert networks[2].pop_message() == ("world",2)
-	
-	def test_separate_queues(self):
-		networks = [Network(i) for i in range(5)]
-		networks[4].send(2, ("PROMISE",1,2,3))
-		networks[2].send(2, "world")
-		print(networks[2].messages)
-		print(networks[2].recvMessages)
-		time.sleep(.1)
-		assert networks[2].pop_message() == ("world",2)
-		assert networks[2].pop_recv_message() == (("PROMISE",1,2,3),4)
+		networks[0].send(4, "hello")
+		networks[2].send(4, 4)
+		assert networks[4].pop_message() == ("hello", 0)
+		assert networks[4].pop_message() == (4, 2)
 
+	def test_fail_link(self):
+		networks = [Network(i) for i in range(5)]
+		networks[0].send(4, "hello")
+		networks[2].fail_link(0)
+		time.sleep(.1)
+		assert networks[2].canSend == [False, True, True, True, True]
+		assert networks[0].canSend == [True, True, False, True, True]
+		networks[2].send(4, 4)
+		assert networks[4].pop_message() == ("hello", 0)
+		assert networks[4].pop_message() == (4, 2)
+
+	def test_fix_link(self):
+		networks = [Network(i) for i in range(5)]
+		networks[0].send(4, "hello")
+		networks[2].fail_link(0)
+		time.sleep(.1)
+		assert networks[2].canSend == [False, True, True, True, True]
+		assert networks[0].canSend == [True, True, False, True, True]
+		networks[2].send(4, 4)
+		assert networks[4].pop_message() == ("hello", 0)
+		assert networks[4].pop_message() == (4, 2)
+		networks[0].fix_link(2)
+		time.sleep(.1)
+		assert networks[2].canSend == [True, True, True, True, True]
+		assert networks[0].canSend == [True, True, True, True, True]
+
+	def test_broadcast(self):
+		networks = [Network(i) for i in range(5)]
+		networks[4].fail_link(2)
+		networks[2].broadcast("message")
+		time.sleep(.1)
+		for i in range(4):
+			assert networks[i].pop_message() == ("message",2)
+		assert len(networks[4].messages)==0
+		
 if __name__ == '__main__':
 	try:
 		debugLevel = int(sys.argv[-1])
