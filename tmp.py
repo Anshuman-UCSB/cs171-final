@@ -6,14 +6,19 @@ import sys
 import os, sys
 
 
-mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True, use_queue=False) for i in range(5)]
-mp[0].ballot_num = [4,8,1]
-mp[0].accept_val = ("POST", "username", "Title 1==2", "content of post (truth)")
-mp[0].decide()
+mp = [MultiPaxos(Network(i), i, Blog(),debug_print=True) for i in range(5)]
+for i in range(5):
+	mp[3].net.fail_link(i)
+assert any(mp[3].net.canSend) == False
+assert mp[0].net.canSend == [True, True, True, False, True]
 time.sleep(.1)
-assert str(mp[0].blog.blocks[0].T) == "<POST,username,Title 1==2,content of post (truth)>"
-assert str(mp[1].blog.blocks[0].T) == "<POST,username,Title 1==2,content of post (truth)>"
-assert str(mp[2].blog.blocks[0].T) == "<POST,username,Title 1==2,content of post (truth)>"
-assert str(mp[3].blog.blocks[0].T) == "<POST,username,Title 1==2,content of post (truth)>"
-assert str(mp[4].blog.blocks[0].T) == "<POST,username,Title 1==2,content of post (truth)>"
-assert mp[2].ballot_num == [1,0,0]
+mp[0].addQueue(("POST", "user", "titl", "cont"))
+while mp[0].ballot_num[0] < 1:
+	time.sleep(.1)
+for i in range(5):
+	mp[3].net.fix_link(i)
+assert mp[0].ballot_num[0] == 1
+assert mp[3].ballot_num[0] == 0
+
+mp[3].prepare()
+time.sleep(.3)

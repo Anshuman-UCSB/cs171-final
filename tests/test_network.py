@@ -58,6 +58,13 @@ class TestNetwork(unittest.TestCase):
 		for i in range(4):
 			assert networks[i].pop_message() == ("message",2)
 		assert len(networks[4].messages)==0
+	
+	def test_failed_message(self):
+		networks = [Network(i) for i in range(5)]
+		networks[0].fail_link(4)
+		networks[4].send(0, ("PREPARE", [1,1,1]))
+		assert len(networks[0].recvMessages) == 0
+		
 		
 if __name__ == '__main__':
 	try:
