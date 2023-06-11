@@ -21,7 +21,6 @@ class TestAccept:
 	def test_accept_success(self):
 		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
 		mp[0].prepare()
-		print(mp[0].ballot_num)
 		time.sleep(.1)
 		assert mp[0].leader == 0
 		mp[0].queue.append("value")
@@ -35,8 +34,15 @@ class TestAccept:
 		
 	def test_accept_fail(self):
 		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
-		
-		...
+		mp[0].prepare()
+		time.sleep(.1)
+		assert mp[0].leader == 0
+		mp[0].queue.append("value")
+		mp[0].net.fail_link(2)
+		mp[0].net.fail_link(3)
+		mp[0].net.fail_link(4)
+		assert mp[0].accept() == False
+		assert mp[0].leader == None
 
 if __name__ == '__main__':
 	try:

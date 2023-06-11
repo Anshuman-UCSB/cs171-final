@@ -41,6 +41,8 @@ class MultiPaxos:
 		self.ballot_num[2] = self.pid
 	def incrementDepth(self):
 		self.ballot_num[0]+=1
+		self.ballot_num[1]=0
+		self.ballot_num[2]=0
 		self.accept_num = None
 		self.accept_val = None
 
@@ -56,6 +58,12 @@ class MultiPaxos:
 					self.receive_promise(content, sender)
 				case "ACCEPTED":
 					self.receive_accepted(content, sender)
+				case "DECIDE":
+					self.receive_decide(content, sender)
+				case "PING":
+					self.pong(content, sender)
+				case "PONG":
+					self.receive_pong(content, sender)
 				case _:
 					error(self.pid,"Unknown message received:",content,"from",sender)
 
@@ -74,6 +82,23 @@ class MultiPaxos:
 				case _:
 					error(self.pid,"Unknown message received:",content,"from",sender)
 
+	def pong(self, content, sender):
+		# maybe check depth / ballot num?
+		if self.leader == self.pid:
+			self.net.send(sender, ("PONG", self.ballot_num))
+
+	def receive_pong(self, content, sender):
+		self.heartbeats |= {sender}
+
+	def checkHeartbeat(self, target):
+		self.heartbeats -= {target}
+		self.net.send(target, ("PING", self.ballot_num))
+		start_time = time.time()
+		while time.time() < start_time + self.TIMEOUT:
+			if target in self.heartbeats: break
+			time.sleep(.1)
+		return target in self.heartbeats
+
 	def prepare(self):
 		self.debug("prepare")
 		# assume we are leader for now
@@ -87,10 +112,11 @@ class MultiPaxos:
 		if self.promises >= 3:
 			self.debug("Became Leader")
 			self.leader = self.pid
+			return True
 		else:
 			self.debug("Couldn't become leader")
 			self.leader = None
-		self.debug("prepare ending with bn", self.ballot_num)
+			return False
 
 	def promise(self, content, sender):
 		# ignore depth for now
@@ -152,17 +178,17 @@ class MultiPaxos:
 		# ignore depth for now
 		self.net.broadcast(("DECIDE", self.ballot_num, self.accept_val))
 
-	def receive_decide(self, content):
-		self.blog.add(*content)
+	def receive_decide(self, content, sender):
+		self.blog.add(*content[2])
+		self.incrementDepth()
 
 	def __repr__(self):
-		out = '[\n'
-		
-		out += f'\tPID: {self.pid}\n'
-		out += f'\tLeader: {self.leader}\n'
-		out += f'\tBallot Num: {self.ballot_num}\n'
-		out += f'\tAccept Val: {self.accept_val}\n'
-		out += f'\tAccept Num: {self.accept_num}\n'
+		out = '['
+		out += f'PID: {self.pid}, '
+		out += f'Leader: {self.leader}, '
+		out += f'Ballot Num: {self.ballot_num}, '
+		out += f'Accept Val: {self.accept_val}, '
+		out += f'Accept Num: {self.accept_num}'
 
 		out += ']'
 		return out
