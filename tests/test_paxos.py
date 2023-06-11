@@ -20,6 +20,7 @@ class TestHeartbeat:
 		time.sleep(.1)
 		assert str(mp[0].blog.blocks[0].T) == "<POST,user,title of post,content here>"
 		assert str(mp[2].blog.blocks[0].T) == "<POST,user,title of post,content here>"
+		assert mp[0].ballot_num == [1,0,0]
 
 	def test_fail_election_hijack(self):
 		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
