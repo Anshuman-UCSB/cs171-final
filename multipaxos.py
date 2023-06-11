@@ -15,6 +15,7 @@ class MultiPaxos:
 		self.blog = blog
 		self.leader = None
 		self.queue = []
+		self.queueLock = threading.Lock()
 
 		self.isDebug = debug_print or isDebug()
 		self.TIMEOUT = 0.5 if self.isDebug else 3
@@ -23,8 +24,6 @@ class MultiPaxos:
 		self.accept_num = None
 		self.accept_val = None
 		
-		self.process_lock = threading.Lock()
-
 		self.promises = 0
 		self.acceptances = 0
 		self.heartbeats = set()
@@ -35,6 +34,15 @@ class MultiPaxos:
 	def debug(self, *args, **kwargs):
 		if self.isDebug:
 			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
+
+	def addQueue(self, val):
+		with self.queueLock:
+			self.queue.append(val)
+			self.debug("adding",val,"to queue", self.queue)
+	def popQueue(self):
+		with self.queueLock:
+			self.debug("popping from queue", self.queue)
+			return self.queue.pop(0)
 
 	def incrementBallot(self):
 		self.ballot_num[1] += 1
@@ -79,6 +87,8 @@ class MultiPaxos:
 					self.promise(content, sender)
 				case "ACCEPT":
 					self.accepted(content, sender)
+				case "ENQUEUE":
+					self.addQueue(content[1])
 				case _:
 					error(self.pid,"Unknown message received:",content,"from",sender)
 
@@ -120,10 +130,15 @@ class MultiPaxos:
 
 	def promise(self, content, sender):
 		# ignore depth for now
-		self.debug(f"{content[1]=} >= {self.ballot_num=}", content[1] >= self.ballot_num)
+		# self.debug(f"{content[1]=} >= {self.ballot_num=}", content[1] >= self.ballot_num)
 		if content[1] >= self.ballot_num:
 			self.ballot_num = content[1]
 			self.net.send(sender, ("PROMISE", self.ballot_num, self.accept_num, self.accept_val))
+			if sender != self.pid:
+				for message in self.queue:
+					self.net.send(sender, ("ENQUEUE", message))
+				with self.queueLock:
+					self.queue = []
 
 	def receive_promise(self, content, sender):
 		self.debug("recv promise", content, sender, self.ballot_num)
@@ -140,8 +155,11 @@ class MultiPaxos:
 
 	def accept(self):
 		self.debug("accept")
+		if self.accept_val is None and self.queue == []:
+			error(self.pid, 'accepting with no values')
+			return False
 		if self.accept_val is None:
-			self.accept_val = self.queue.pop(0)
+			self.accept_val = self.popQueue()
 		self.acceptances = 0
 		self.net.broadcast(("ACCEPT", self.ballot_num, self.accept_val))
 

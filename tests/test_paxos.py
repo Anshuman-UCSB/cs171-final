@@ -27,11 +27,13 @@ class TestHeartbeat:
 		mp[0].queue.append(("POST", "user", "title of post", "content here"))
 		mp[1].queue.append(("POST", "user_hijacked", "title of hijack", "content hijacked"))
 		assert mp[1].prepare() == True
+		print(mp[1].queue)
 		
 		mp[0].net.fail_link(1)
 		time.sleep(.1)
-		
 		assert mp[1].accept() == True
+		time.sleep(.1)
+		print(mp)
 
 		assert mp[0].prepare() == True
 		assert mp[0].accept() == True
