@@ -81,8 +81,7 @@ class TestCatchup:
 		mp[0].addQueue(("COMMENT", "comment", "title 2", "cmnt"))
 		time.sleep(1)
 		for i in range(1,4):
-			for a,b in zip(mp[0].blog.blocks, mp[i].blog.blocks):
-				assert str(a.T) == str(b.T), i
+			assert mp[0].blog.blocks == mp[i].blog.blocks, i
 
 if __name__ == '__main__':
 	try:

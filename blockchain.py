@@ -32,6 +32,8 @@ class HashBlock:
 		return f"{self.H}{self.T}{self.N}"
 	def __repr__(self):
 		return f"{self.H}{self.T}{self.N}"
+	def __eq__(self, other):
+		return str(self) == str(other)
 
 class Blog:
 	def __init__(self):
