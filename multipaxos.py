@@ -30,6 +30,7 @@ class MultiPaxos:
 		self.acceptances = 0
 		self.heartbeats = set()
 		self.caughtup = False
+		self.in_catchup = False
 
 		threading.Thread(target=self.handleQueue).start()
 		threading.Thread(target=self.handleMessages).start()
@@ -73,7 +74,8 @@ class MultiPaxos:
 		while True:
 			if not self.isDebug:
 				time.sleep(3)
-			
+			while self.in_catchup:
+				time.sleep(.1)
 			content,sender = self.net.pop_recv_message()
 			if content[1][0] == self.ballot_num[0] or content[1] in ("OUTDATED",):
 				self.debug("received",content, sender)
@@ -90,6 +92,8 @@ class MultiPaxos:
 						self.receive_pong(content, sender)
 					case "QUERY":
 						self.data(content, sender)
+					case "DATA":
+						self.receive_data(content, sender)
 					case _:
 						error(self.pid,"Unknown message received:",content,"from",sender)
 			elif content[1][0] < self.ballot_num[0]:
@@ -97,13 +101,15 @@ class MultiPaxos:
 				self.net.send(sender, ("OUTDATED", self.ballot_num))
 			else:
 				# we are behind
-				self.catchup(content, sender)
+				self.in_catchup = True
 
 	def handleMessages(self):
 		while True:
 			if not self.isDebug:
 				time.sleep(3)
-			
+			if self.in_catchup:
+				self.catchup()
+
 			content,sender = self.net.pop_message()
 			self.debug("received",content, sender)
 			if content[1][0] == self.ballot_num[0] or content[1] in ("OUTDATED",):
@@ -115,7 +121,7 @@ class MultiPaxos:
 					case "ENQUEUE":
 						self.addQueue(content[2])
 					case "OUTDATED":
-						self.catchup(content, sender)
+						self.in_catchup = True
 					case _:
 						error(self.pid,"Unknown message received:",content,"from",sender)
 			elif content[1][0] < self.ballot_num[0]:
@@ -124,19 +130,26 @@ class MultiPaxos:
 				self.net.send(sender, ("OUTDATED", self.ballot_num))
 			else:
 				# we are behind
-				self.catchup(content, sender)
+				self.in_catchup = True
 
 	def data(self, content, sender):
 		assert len(self.blog.blocks)>content[2]
 		self.net.send(sender, ("DATA", self.ballot_num, self.blog.blocks[content[2]].T))
 
+	def receive_data(self, content, sender):
+		assert self.ballot_num[0] == content[1][0], "received data for wrong ballot num"
+		self.blog.add(self.content[2].OP, self.content[2].usernmae, self.content[2].title, self.content[2].content)
+		
 	def catchup(self, content, sender):
+		self.debug("STARTING CATCHUP", content, sender)
+		assert self.in_catchup == True, "wasn't instructed to enter"
 		while self.ballot_num[0] < content[1][0]:
 			self.caughtup = False
 			self.net.send(sender, ("QUERY", self.ballot_num, self.ballot_num[0]))
 			start_time = time.time()
 			while time.time() < start_time + 3 and self.caughtup == False:
 				time.sleep(.1)
+		self.in_catchup = False
 
 	def pong(self, content, sender):
 		# maybe check depth / ballot num?
