@@ -1,11 +1,10 @@
+import os, sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import unittest
 import time
 from multipaxos import MultiPaxos
 from network import Network
 from blockchain import Blog
-import sys
-import os, sys
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 debugLevel = 1
 

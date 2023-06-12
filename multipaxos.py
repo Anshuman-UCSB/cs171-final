@@ -289,3 +289,7 @@ class MultiPaxos:
 		out += ']'
 		return out
 		
+
+if __name__ == "__main__":
+	mp = MultiPaxos(Network(0), 0, Blog())
+	print(repr(mp))
