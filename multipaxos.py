@@ -11,7 +11,7 @@ from colorama import Style
 colors = [eval(f"Fore.{x.upper()}") for x in ("cyan", "green", "yellow", "blue", "magenta", "white")]
 
 class MultiPaxos:
-	def __init__(self, net, pid, blog, use_snapshot = False, debug_print = False, use_queue = True):
+	def __init__(self, net, pid, blog, timeout = 10, use_snapshot = False, debug_print = False, use_queue = True):
 		self.net = net
 		self.pid = pid
 		self.blog = blog
@@ -22,7 +22,7 @@ class MultiPaxos:
 		self.use_queue = use_queue
 
 		self.isDebug = debug_print or isDebug()
-		self.TIMEOUT = 0.5 if self.isDebug else 10
+		self.TIMEOUT = timeout
 
 		self.ballot_num = [0,0,0]		# Depth, Num, Pid
 		self.accept_num = None

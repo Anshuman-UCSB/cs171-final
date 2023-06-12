@@ -5,12 +5,10 @@ from blockchain import Blog
 import sys
 import os, sys
 
-mp = [MultiPaxos(Network(i), i, Blog(),use_snapshot=True,debug_print=True) for i in range(5)]
-# mp[0].addQueue(("POST", "user", "title 1", "cont"))
-# mp[0].addQueue(("POST", "user", "title 2", "cont"))
-
-# time.sleep(2)
-# mp[0].save_state()
-mp[0].load_state()
-print(mp[0].blog.blocks)
-mp[0].blog.blockchain()
+networks = [Network(i) for i in range(5)]
+networks[4].fail_link(2)
+networks[2].broadcast("message")
+time.sleep(.1)
+for i in range(4):
+	assert networks[i].pop_message() == ("message",2)
+assert len(networks[4].messages)==0
