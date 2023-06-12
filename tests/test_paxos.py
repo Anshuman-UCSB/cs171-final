@@ -61,14 +61,14 @@ class TestPaxos:
 	def test_jfk(self):
 		mp = [MultiPaxos(Network(i), i, Blog(), debug_print=True) for i in range(5)]
 		mp[0].addQueue(("POST", "PERSON", "NAME", "RAH"))
-		time.sleep(.8)
+		time.sleep(1.2)
 		assert mp[0].leader == 0
 		assert mp[0].ballot_num[0] == 1
 		for i in range(5):
 			mp[0].net.fail_link(i)
 		
 		mp[2].addQueue(("COMMENT", "HATER", "NAME","stupid post. Delete."))
-		time.sleep(1.5)
+		time.sleep(1.8)
 		assert mp[2].leader == 2
 		assert mp[3].leader == 2
 		

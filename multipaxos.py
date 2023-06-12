@@ -1,15 +1,16 @@
-from network import Network
 from utils import TIMEOUT
+from network import Network
 import threading
 import time
 from blockchain import Blog
 from utils import *
+import pickle
 from colorama import Fore, Back
 from colorama import Style
 colors = [eval(f"Fore.{x.upper()}") for x in ("cyan", "green", "yellow", "blue", "magenta", "white")]
 
 class MultiPaxos:
-	def __init__(self, net, pid, blog, debug_print = False, use_queue = True):
+	def __init__(self, net, pid, blog, use_snapshot = False, debug_print = False, use_queue = True):
 		self.net = net
 		self.pid = pid
 		self.blog = blog
@@ -33,16 +34,22 @@ class MultiPaxos:
 		self.in_catchup = None
 		self.catchup_lock = threading.Lock()
 
+		self.use_snapshot = use_snapshot
+		self.snapshot_period = 10
+		if self.use_snapshot:
+			self.load_state()
+
 		threading.Thread(target=self.handleQueue).start()
 		threading.Thread(target=self.handleMessages).start()
 		threading.Thread(target=self.handleReceives).start()
+		threading.Thread(target=self.handleSnapshot).start()
 
 	def debug(self, *args, **kwargs):
 		if self.isDebug:
 			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
 	def demo(self, *args, **kwargs):
 		if not self.isDebug:
-			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
+			print(f"{Fore.RED}[DEMO - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
 
 	def addQueue(self, val):
 		with self.queueLock:
@@ -52,6 +59,22 @@ class MultiPaxos:
 		with self.queueLock:
 			self.debug("popping from queue", self.queue)
 			return self.queue.pop(0)
+
+	def save_state(self, path=None):
+		path = path or f"states/{self.pid}"
+		with open(path, 'wb') as f:
+			pickle.dump((self.blog.blocks, self.accept_val), f)
+			self.debug("saving", (self.blog.blocks, self.accept_val), "to", path)
+
+	def load_state(self, path=None):
+		path = path or f"states/{self.pid}"
+		try:
+			with open(path, 'rb') as f:
+				self.blog.blocks, self.accept_val = pickle.load(f)
+				self.ballot_num[0] = len(self.blog.blocks)
+				self.debug("Loaded state from",path)
+		except FileNotFoundError:
+			self.debug("Not loading from snapshot - no found state file at",path)
 
 	def incrementBallot(self):
 		self.ballot_num[1] += 1
@@ -74,12 +97,17 @@ class MultiPaxos:
 					self.net.send(self.leader, ("ENQUEUE", self.ballot_num, self.popQueue()))
 			time.sleep(.1)
 
+	def handleSnapshot(self):
+		while self.use_snapshot:
+			time.sleep(self.snapshot_period)
+			self.save_state()
+
 	def handleReceives(self):
 		while True:
+			content,sender = self.net.pop_recv_message()
 			if not self.isDebug:
 				time.sleep(3)
-			content,sender = self.net.pop_recv_message()
-			self.debug("received",content, sender)
+			self.debug("received",content,"from", sender)
 			if content[1][0] == self.ballot_num[0] or content[0] in ("QUERY","DATA"):
 				match content[0]:
 					case "PROMISE":
@@ -107,13 +135,13 @@ class MultiPaxos:
 
 	def handleMessages(self):
 		while True:
-			if not self.isDebug:
-				time.sleep(3)
 			if self.in_catchup:
 				self.catchup(*self.in_catchup)
-
 			content,sender = self.net.pop_message()
-			self.debug("received",content, sender)
+			if not self.isDebug:
+				time.sleep(3)
+
+			self.debug("received",content,"from", sender)
 			if content[1][0] == self.ballot_num[0] or content[0] in ("OUTDATED",):
 				match content[0]:
 					case "PREPARE":
@@ -182,6 +210,7 @@ class MultiPaxos:
 		self.incrementBallot()
 		self.promises = 0
 		self.net.broadcast(("PREPARE", self.ballot_num))
+		self.demo("PREPARE", f"<{self.ballot_num}>", f"<{self.pid} to all>")
 		start_time = time.time()
 		while time.time() < start_time + self.TIMEOUT:
 			if self.promises >= 3: break
@@ -201,6 +230,7 @@ class MultiPaxos:
 		if content[1] >= self.ballot_num:
 			self.ballot_num = content[1]
 			self.net.send(sender, ("PROMISE", self.ballot_num, self.accept_num, self.accept_val))
+			self.demo("PROMISE", f"<{self.ballot_num}>", f"<{self.accept_num}>", f"<{self.accept_val}>", f"<{self.pid} to {sender}>")
 			if sender != self.pid:
 				for message in self.queue:
 					self.net.send(sender, ("ENQUEUE", self.ballot_num, message))
@@ -229,6 +259,8 @@ class MultiPaxos:
 			self.accept_val = self.popQueue()
 		self.acceptances = 0
 		self.net.broadcast(("ACCEPT", self.ballot_num, self.accept_val))
+		self.demo("ACCEPT", f"<{self.ballot_num}>", f"<{self.accept_val}>" ,f"<{self.pid} to all>")
+
 
 		start_time = time.time()
 		while time.time() < start_time + self.TIMEOUT:
@@ -249,6 +281,9 @@ class MultiPaxos:
 			self.accept_num = content[1]
 			self.accept_val = content[2]
 			self.net.send(sender, ("ACCEPTED", self.ballot_num, self.accept_num, self.accept_val))
+			self.demo("ACCEPTED", f"<{self.ballot_num}>", f"<{self.accept_num}>", f"<{self.accept_val}>", f"<{self.pid} to {sender}>")
+
+
 	
 	def receive_accepted(self, content, sender):
 		if self.leader != self.pid:
@@ -262,8 +297,11 @@ class MultiPaxos:
 	def decide(self):
 		# ignore depth for now
 		self.net.broadcast(("DECIDE", self.ballot_num, self.accept_val))
+		self.demo("DECIDE", f"<{self.ballot_num}>", f"<{self.accept_val}>" ,f"<{self.pid} to all>")
+
 
 	def receive_decide(self, content, sender):
+		self.demo("DECIDING", content, f"<from {sender}>")
 		self.blog.add(*content[2])
 		self.incrementDepth()
 

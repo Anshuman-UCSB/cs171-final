@@ -6,7 +6,7 @@ from collections import deque
 from time import sleep
 
 class Network:
-	def __init__(self, id):
+	def __init__(self, id, base_port = 9000):
 		self.id = id
 		self.messages = deque()
 		self.messageLock = threading.Lock()
@@ -15,7 +15,7 @@ class Network:
 		self.recvMessageLock = threading.Lock()
 
 		self.ip = "127.0.0.1"
-		self.base_port = 9000
+		self.base_port = base_port
 
 		self.UDP = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 		self.UDP.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

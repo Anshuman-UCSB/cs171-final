@@ -10,8 +10,10 @@ class Server:
 	def __init__(self,pid:int):
 		self.pid = int(pid)
 		self.blog = Blog()
-		self.net = Network(self.pid)
-		self.mp = MultiPaxos(self.net, self.pid, self.blog)
+		self.net = Network(self.pid, base_port=8000)
+		self.mp = MultiPaxos(self.net, self.pid, self.blog, use_snapshot=True)
+
+
 
 		threading.Thread(target=self.handleInput).start()
 
@@ -35,16 +37,20 @@ class Server:
 				self.crash()
 			elif inp.startswith("failLink"):
 				target = parseNums(inp)
-				if len(target) > 1:
+				if len(target) > 0:
 					target = target[0]
 					self.net.fail_link(target)
 					self.debug("broke link to",target)
+					self.demo("broke link to",target)
+					self.demo(self.net.canSend, self.mp.net.canSend)
 			elif inp.startswith("fixLink"):
 				target = parseNums(inp)
-				if len(target) > 1:
+				if len(target) > 0:
 					target = target[0]
 					self.net.fix_link(target)
 					self.debug("fixed link to",target)
+					self.demo("fixed link to",target)
+					self.demo(self.net.canSend, self.mp.net.canSend)
 			elif inp == "blockchain":
 				print(self.blog)
 			elif inp == "queue":
@@ -58,15 +64,20 @@ class Server:
 					self.mp.addQueue(("POST", args[0], args[1], args[2]))
 			elif inp.startswith("comment"):
 				args = parseArgs(inp)
-				self.debug(args)
-				self.mp.addQueue(("COMMENT", args[0], args[1], args[2]))
+				if len(args) == 3:
+					self.debug(args)
+					self.mp.addQueue(("COMMENT", args[0], args[1], args[2]))
 			elif inp == "blog":
 				self.blog.blog()
 			elif inp.startswith("view"):
-				name = parseArgs(inp)[0]
+				name = parseNums(inp)
+				if len(name) > 0:
+					name = name[0]
 				self.blog.view(name)
 			elif inp.startswith("read"):
-				title = parseArgs(inp)[0]
+				title = parseNums(inp)
+				if len(title) > 0:
+					title = title[0]
 				self.blog.read(title)
 			else:
 				if isDebug():
