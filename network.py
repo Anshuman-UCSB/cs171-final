@@ -6,7 +6,7 @@ from collections import deque
 from time import sleep
 
 class Network:
-	def __init__(self, id, base_port = 9000):
+	def __init__(self, id, base_port = 9000, delay = None):
 		self.id = id
 		self.messages = deque()
 		self.messageLock = threading.Lock()
@@ -23,6 +23,8 @@ class Network:
 
 		threading.Thread(target=self.read_messages).start()
 		self.canSend = [True]*5
+
+		self.delay = delay or 0
 
 	def pop_message(self):
 		while len(self.messages) == 0:
@@ -68,13 +70,22 @@ class Network:
 		for dest in range(5):
 			self.send(dest, message)
 
+	def delayedSend(self, dest, message, delay):
+		content = pickle.dumps(message)
+		sleep(delay)
+		self.UDP.sendto(content, (self.ip, self.base_port + dest))
+
 	def send(self, dest: int, message):
 		# assert dest != self.id, "uh oh, tried to send to self"
 		if self.canSend[dest] == False:
 			debug(self.id, "failed to send a message to",dest,"due to broken link", level = 3)
 			return False
-		self.UDP.sendto(pickle.dumps(message), (self.ip, self.base_port + dest))
-		debug(self.id,f"sent message {message} to {dest}", level = 3)
+		if self.delay > 0:
+			threading.Thread(target=self.delayedSend(dest, message, self.delay))
+			debug(self.id, "delayed sent message", message, "to", dest, level = 3)
+		else:
+			self.UDP.sendto(pickle.dumps(message), (self.ip, self.base_port + dest))
+			debug(self.id,f"sent message {message} to {dest}", level = 3)
 
 	def fail_link(self, dest):
 		self.canSend[dest] = True

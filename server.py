@@ -10,8 +10,9 @@ class Server:
 	def __init__(self,pid:int):
 		self.pid = int(pid)
 		self.blog = Blog()
-		self.net = Network(self.pid, base_port=8000)
-		self.mp = MultiPaxos(self.net, self.pid, self.blog, use_snapshot=True)
+		self.net = Network(self.pid, base_port=8000, delay=3)
+		self.mp = MultiPaxos(self.net, self.pid, 
+							self.blog, use_snapshot=False)
 
 
 

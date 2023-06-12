@@ -6,6 +6,7 @@ from blockchain import Blog
 from utils import *
 import pickle
 from colorama import Fore, Back
+from random import random
 from colorama import Style
 colors = [eval(f"Fore.{x.upper()}") for x in ("cyan", "green", "yellow", "blue", "magenta", "white")]
 
@@ -35,7 +36,7 @@ class MultiPaxos:
 		self.catchup_lock = threading.Lock()
 
 		self.use_snapshot = use_snapshot
-		self.snapshot_period = 10
+		self.snapshot_period = 15
 		if self.use_snapshot:
 			self.load_state()
 
@@ -45,7 +46,7 @@ class MultiPaxos:
 		threading.Thread(target=self.handleSnapshot).start()
 
 	def debug(self, *args, **kwargs):
-		if self.isDebug:
+		# if self.isDebug or True:
 			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
 	def demo(self, *args, **kwargs):
 		if not self.isDebug:
@@ -85,6 +86,8 @@ class MultiPaxos:
 		self.ballot_num[2]=0
 		self.accept_num = None
 		self.accept_val = None
+	def random_delay(self):
+		time.sleep(random()*2)
 
 	def handleQueue(self):
 		while self.use_queue:
@@ -96,6 +99,7 @@ class MultiPaxos:
 				else:
 					self.net.send(self.leader, ("ENQUEUE", self.ballot_num, self.popQueue()))
 			time.sleep(.1)
+			self.random_delay()
 
 	def handleSnapshot(self):
 		while self.use_snapshot:
@@ -104,9 +108,10 @@ class MultiPaxos:
 
 	def handleReceives(self):
 		while True:
+			# if not self.isDebug:
+			# 	time.sleep(3)
+			# 	self.random_delay()
 			content,sender = self.net.pop_recv_message()
-			if not self.isDebug:
-				time.sleep(3)
 			self.debug("received",content,"from", sender)
 			if content[1][0] == self.ballot_num[0] or content[0] in ("QUERY","DATA"):
 				match content[0]:
@@ -135,11 +140,11 @@ class MultiPaxos:
 
 	def handleMessages(self):
 		while True:
+			# if not self.isDebug:
+			# 	time.sleep(3)
 			if self.in_catchup:
 				self.catchup(*self.in_catchup)
 			content,sender = self.net.pop_message()
-			if not self.isDebug:
-				time.sleep(3)
 
 			self.debug("received",content,"from", sender)
 			if content[1][0] == self.ballot_num[0] or content[0] in ("OUTDATED",):
@@ -209,8 +214,8 @@ class MultiPaxos:
 		# assume we are leader for now
 		self.incrementBallot()
 		self.promises = 0
-		self.net.broadcast(("PREPARE", self.ballot_num))
 		self.demo("PREPARE", f"<{self.ballot_num}>", f"<{self.pid} to all>")
+		self.net.broadcast(("PREPARE", self.ballot_num))
 		start_time = time.time()
 		while time.time() < start_time + self.TIMEOUT:
 			if self.promises >= 3: break
@@ -221,6 +226,7 @@ class MultiPaxos:
 			return True
 		else:
 			self.debug("Couldn't become leader")
+			self.demo("TIMEOUT")
 			self.leader = None
 			return False
 
@@ -229,8 +235,8 @@ class MultiPaxos:
 		# self.debug(f"{content[1]=} >= {self.ballot_num=}", content[1] >= self.ballot_num)
 		if content[1] >= self.ballot_num:
 			self.ballot_num = content[1]
-			self.net.send(sender, ("PROMISE", self.ballot_num, self.accept_num, self.accept_val))
 			self.demo("PROMISE", f"<{self.ballot_num}>", f"<{self.accept_num}>", f"<{self.accept_val}>", f"<{self.pid} to {sender}>")
+			self.net.send(sender, ("PROMISE", self.ballot_num, self.accept_num, self.accept_val))
 			if sender != self.pid:
 				for message in self.queue:
 					self.net.send(sender, ("ENQUEUE", self.ballot_num, message))
@@ -258,8 +264,8 @@ class MultiPaxos:
 		if self.accept_val is None:
 			self.accept_val = self.popQueue()
 		self.acceptances = 0
-		self.net.broadcast(("ACCEPT", self.ballot_num, self.accept_val))
 		self.demo("ACCEPT", f"<{self.ballot_num}>", f"<{self.accept_val}>" ,f"<{self.pid} to all>")
+		self.net.broadcast(("ACCEPT", self.ballot_num, self.accept_val))
 
 
 		start_time = time.time()
@@ -271,6 +277,7 @@ class MultiPaxos:
 			return True
 		else:
 			self.debug("Accept failed, no longer leader")
+			self.demo("TIMEOUT")
 			self.leader = None
 			return False
 	
@@ -280,8 +287,8 @@ class MultiPaxos:
 			self.leader = sender
 			self.accept_num = content[1]
 			self.accept_val = content[2]
-			self.net.send(sender, ("ACCEPTED", self.ballot_num, self.accept_num, self.accept_val))
 			self.demo("ACCEPTED", f"<{self.ballot_num}>", f"<{self.accept_num}>", f"<{self.accept_val}>", f"<{self.pid} to {sender}>")
+			self.net.send(sender, ("ACCEPTED", self.ballot_num, self.accept_num, self.accept_val))
 
 
 	
@@ -296,8 +303,8 @@ class MultiPaxos:
 
 	def decide(self):
 		# ignore depth for now
-		self.net.broadcast(("DECIDE", self.ballot_num, self.accept_val))
 		self.demo("DECIDE", f"<{self.ballot_num}>", f"<{self.accept_val}>" ,f"<{self.pid} to all>")
+		self.net.broadcast(("DECIDE", self.ballot_num, self.accept_val))
 
 
 	def receive_decide(self, content, sender):
