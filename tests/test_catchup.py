@@ -45,7 +45,7 @@ class TestCatchup:
 		assert mp[3].ballot_num[0] == 0
 
 		mp[2].prepare()
-		time.sleep(.1)
+		time.sleep(.2)
 		assert mp[3].ballot_num[0] == 1
 
 	def test_catchup_multuple(self):
