@@ -20,7 +20,7 @@ class MultiPaxos:
 		self.use_queue = use_queue
 
 		self.isDebug = debug_print or isDebug()
-		self.TIMEOUT = 0.5 if self.isDebug else 3
+		self.TIMEOUT = 0.5 if self.isDebug else 10
 
 		self.ballot_num = [0,0,0]		# Depth, Num, Pid
 		self.accept_num = None
@@ -31,6 +31,7 @@ class MultiPaxos:
 		self.heartbeats = set()
 		self.caughtup = False
 		self.in_catchup = None
+		self.catchup_lock = threading.Lock()
 
 		threading.Thread(target=self.handleQueue).start()
 		threading.Thread(target=self.handleMessages).start()
@@ -38,6 +39,9 @@ class MultiPaxos:
 
 	def debug(self, *args, **kwargs):
 		if self.isDebug:
+			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
+	def demo(self, *args, **kwargs):
+		if not self.isDebug:
 			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
 
 	def addQueue(self, val):
@@ -64,7 +68,7 @@ class MultiPaxos:
 			if self.queue:
 				if self.leader == self.pid:
 					self.accept() and self.decide()
-				elif self.leader is None or self.checkHeartbeat(self.leader) == False:
+				elif self.leader is None or self.check_heartbeat(self.leader) == False:
 					self.prepare() and self.accept() and self.decide()
 				else:
 					self.net.send(self.leader, ("ENQUEUE", self.ballot_num, self.popQueue()))
@@ -75,8 +79,8 @@ class MultiPaxos:
 			if not self.isDebug:
 				time.sleep(3)
 			content,sender = self.net.pop_recv_message()
+			self.debug("received",content, sender)
 			if content[1][0] == self.ballot_num[0] or content[0] in ("QUERY","DATA"):
-				self.debug("received",content, sender)
 				match content[0]:
 					case "PROMISE":
 						self.receive_promise(content, sender)
@@ -142,17 +146,18 @@ class MultiPaxos:
 		self.caughtup = True
 
 	def catchup(self, content, sender):
-		self.debug("STARTING CATCHUP", content, sender)
-		assert self.in_catchup is not None, "wasn't instructed to enter"
-		while self.ballot_num[0] < content[1][0]:
-			self.debug("catching up - ", self.ballot_num[0], " -> ", content[1][0])
-			self.caughtup = False
-			self.net.send(sender, ("QUERY", self.ballot_num, self.ballot_num[0]))
-			start_time = time.time()
-			while time.time() < start_time + 3 and self.caughtup == False:
-				time.sleep(.1)
-		self.in_catchup = None
-		self.debug("ALL CAUGHT UP")
+		with self.catchup_lock:
+			self.debug("STARTING CATCHUP", content, sender)
+			assert self.in_catchup is not None, "wasn't instructed to enter"
+			while self.ballot_num[0] < content[1][0]:
+				self.debug("catching up - ", self.ballot_num[0], " -> ", content[1][0])
+				self.caughtup = False
+				self.net.send(sender, ("QUERY", self.ballot_num, self.ballot_num[0]))
+				start_time = time.time()
+				while time.time() < start_time + 3 and self.caughtup == False:
+					time.sleep(.1)
+			self.in_catchup = None
+			self.debug("ALL CAUGHT UP")
 
 	def pong(self, content, sender):
 		# maybe check depth / ballot num?
@@ -162,7 +167,7 @@ class MultiPaxos:
 	def receive_pong(self, content, sender):
 		self.heartbeats |= {sender}
 
-	def checkHeartbeat(self, target):
+	def check_heartbeat(self, target):
 		self.heartbeats -= {target}
 		self.net.send(target, ("PING", self.ballot_num))
 		start_time = time.time()

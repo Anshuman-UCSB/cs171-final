@@ -7,7 +7,7 @@ import re
 def isDebug():
 	return "debug" in sys.argv
 
-TIMEOUT = .5 if isDebug() else 3
+TIMEOUT = .5 if isDebug() else 10
 CUTIMEOUT = 3
 
 colors = [eval(f"Fore.{x.upper()}") for x in ("cyan", "green", "yellow", "blue", "magenta", "white")]

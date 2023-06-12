@@ -60,6 +60,8 @@ class Blog:
 		elif OP == "COMMENT":
 			print(f"NEW COMMENT `{title}` from {username}")
 		self.blocks.append(HashBlock(h_prev, OP, username, title, content))
+	def blockchain(self):
+		debug("print blockchain")
 	def blog(self):
 		debug("print blog")
 
@@ -109,7 +111,7 @@ class Blog:
 			return "[]"
 		out = '[\n'
 		for block in self.blocks:
-			out+=f"\t{block.T},\n"
+			out+=f"\t<{block.H}>, {block.T}, <{block.N}>,\n"
 		out = out[:-2]
 		out += '\n]'
 		return out
@@ -125,7 +127,7 @@ if __name__ == "__main__":
 	bc.view("other name")
 	print("here")
 	bc.view("username")
-	
+	print(bc)
 	bc.read("hello")
 	bc.read("NaN")
 	bc.read("hello2")
