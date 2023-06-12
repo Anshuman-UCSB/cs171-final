@@ -3,6 +3,7 @@ import threading
 from utils import debug
 import pickle
 from collections import deque
+from copy import deepcopy
 from time import sleep
 
 class Network:
@@ -66,23 +67,26 @@ class Network:
 					debug(self.id,"didn't recieve message:",(message,address[1]-self.base_port), level = 3)
 
 	def broadcast(self, message):
+		message = deepcopy(message)
 		debug("broadcasting message",message)
 		for dest in range(5):
 			self.send(dest, message)
 
 	def delayedSend(self, dest, message, delay):
+		message = deepcopy(message)
 		content = pickle.dumps(message)
 		sleep(delay)
 		self.UDP.sendto(content, (self.ip, self.base_port + dest))
 
 	def send(self, dest: int, message):
+		message = deepcopy(message)
 		# assert dest != self.id, "uh oh, tried to send to self"
 		if self.canSend[dest] == False:
 			debug(self.id, "failed to send a message to",dest,"due to broken link", level = 3)
 			return False
 		if self.delay > 0:
-			threading.Thread(target=self.delayedSend(dest, message, self.delay))
 			debug(self.id, "delayed sent message", message, "to", dest, level = 3)
+			threading.Thread(target=self.delayedSend(dest, message, self.delay), daemon=True).start()
 		else:
 			self.UDP.sendto(pickle.dumps(message), (self.ip, self.base_port + dest))
 			debug(self.id,f"sent message {message} to {dest}", level = 3)
