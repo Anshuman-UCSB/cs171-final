@@ -32,6 +32,8 @@ class HashBlock:
 		return f"{self.H}{self.T}{self.N}"
 	def __repr__(self):
 		return f"{self.H}{self.T}{self.N}"
+	def __eq__(self, other):
+		return str(self) == str(other)
 
 class Blog:
 	def __init__(self):
@@ -58,6 +60,9 @@ class Blog:
 		elif OP == "COMMENT":
 			print(f"NEW COMMENT `{title}` from {username}")
 		self.blocks.append(HashBlock(h_prev, OP, username, title, content))
+		return True
+	def blockchain(self):
+		debug("print blockchain")
 	def blog(self):
 		debug("print blog")
 
@@ -107,22 +112,23 @@ class Blog:
 			return "[]"
 		out = '[\n'
 		for block in self.blocks:
-			out+=f"\t{block.T},\n"
+			out+=f"\t<{block.H}>, {block.T}, <{block.N}>,\n"
 		out = out[:-2]
 		out += '\n]'
 		return out
 	
 if __name__ == "__main__":
 	bc = Blog()
-	bc.add("POST", "biggergig", "hello", "this is the content")
-	bc.add("POST", "biggergig", "hello2", "this is the content")
-	bc.add("COMMENT", "biggergig", "hello", "comment #1 on hello")
-	bc.add("POST", "cdese", "hello3", "this is the content")
-	bc.add("COMMENT", "biggergig", "hello", "comment #2 on hello")
+	bc.add("POST", "username", "hello", "this is the content")
+	bc.add("POST", "username", "hello2", "this is the content")
+	bc.add("COMMENT", "username", "hello", "comment #1 on hello")
+	bc.add("POST", "other name", "hello3", "this is the content")
+	bc.add("COMMENT", "username", "hello", "comment #2 on hello")
 	bc.blog()
-	bc.view("cdese")
-	bc.view("biggergig")
-	
+	bc.view("other name")
+	print("here")
+	bc.view("username")
+	print(bc)
 	bc.read("hello")
 	bc.read("NaN")
 	bc.read("hello2")
