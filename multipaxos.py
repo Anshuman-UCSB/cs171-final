@@ -111,6 +111,8 @@ class MultiPaxos:
 		while self.use_snapshot:
 			time.sleep(self.snapshot_period)
 			self.save_state()
+			self.net.broadcast(("PING", self.ballot_num))
+
 
 	def handleReceives(self):
 		while True:

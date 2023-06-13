@@ -12,7 +12,7 @@ class Server:
 		self.blog = Blog()
 		self.net = Network(self.pid, base_port=8000, delay=3)
 		self.mp = MultiPaxos(self.net, self.pid, 
-							self.blog, use_snapshot="save" in argv)
+							self.blog, use_snapshot="nosave" not in argv)
 
 
 
