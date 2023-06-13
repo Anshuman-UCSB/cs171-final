@@ -23,3 +23,16 @@ crash 1
 start 1
 3 posts (x,y,z)
 
+3. point of no return
+start all
+0 posts (a,b,c)
+once accept gets broadcasted, crash 0
+wait for processes to stop
+all processes faillink to 0
+failLink 0
+start 0
+fixLink 0
+propose(x,y,z)
+
+expected:
+(a,b,c) gets decided 

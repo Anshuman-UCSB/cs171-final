@@ -45,6 +45,8 @@ class MultiPaxos:
 		threading.Thread(target=self.handleReceives).start()
 		threading.Thread(target=self.handleSnapshot).start()
 
+		self.net.broadcast(("PING", self.ballot_num))
+
 	def debug(self, *args, **kwargs):
 		# if self.isDebug or True:
 			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
@@ -112,8 +114,8 @@ class MultiPaxos:
 			# 	time.sleep(3)
 			# 	self.random_delay()
 			content,sender = self.net.pop_recv_message()
-			self.debug("received",content,"from", sender)
-			if content[1][0] == self.ballot_num[0] or content[0] in ("QUERY","DATA"):
+			self.debug("received*",content,"from", sender)
+			if content[1][0] == self.ballot_num[0] or content[0] in ("QUERY","DATA","LEADER"):
 				match content[0]:
 					case "PROMISE":
 						self.receive_promise(content, sender)
@@ -129,6 +131,9 @@ class MultiPaxos:
 						self.data(content, sender)
 					case "DATA":
 						self.receive_data(content, sender)
+					case "LEADER":
+						self.debug("updating leader from", self.leader, "to", content[2])
+						self.leader = content[2]
 					case _:
 						error(self.pid,"Unknown message received:",content,"from",sender)
 			elif content[1][0] < self.ballot_num[0]:
@@ -169,6 +174,7 @@ class MultiPaxos:
 
 	def data(self, content, sender):
 		assert len(self.blog.blocks)>content[2]
+		self.net.queue_message(sender, ("LEADER", self.ballot_num, self.leader))
 		self.net.queue_message(sender, ("DATA", self.ballot_num, self.blog.blocks[content[2]].T))
 
 	def receive_data(self, content, sender):
@@ -233,6 +239,7 @@ class MultiPaxos:
 		if self.promises >= 3:
 			self.debug("Became Leader")
 			self.leader = self.pid
+			self.net.broadcast(("LEADER", self.ballot_num, self.leader))
 			return True
 		else:
 			self.debug("Couldn't become leader")
@@ -322,6 +329,8 @@ class MultiPaxos:
 		self.leader = sender
 		if self.blog.add(*content[2]):
 			self.incrementDepth()
+		self.accept_num = None
+		self.accept_val = None
 
 	def __repr__(self):
 		out = '['
