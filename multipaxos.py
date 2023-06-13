@@ -65,7 +65,7 @@ class MultiPaxos:
 		path = path or f"states/{self.pid}"
 		with open(path, 'wb') as f:
 			pickle.dump((self.blog.blocks, self.accept_val), f)
-			self.debug("saving", (self.blog.blocks, self.accept_val), "to", path)
+			self.debug("saving", (str(self.blog.blocks)[:30]+"...", self.accept_val), "to", path)
 
 	def load_state(self, path=None):
 		path = path or f"states/{self.pid}"
@@ -91,14 +91,14 @@ class MultiPaxos:
 
 	def handleQueue(self):
 		while self.use_queue:
-			if self.queue:
+			if self.queue and not self.in_catchup:
 				if self.leader == self.pid:
 					self.accept() and self.decide()
 				elif self.leader is None or self.check_heartbeat(self.leader) == False:
 					self.prepare() and self.accept() and self.decide()
 				else:
-					self.net.send(self.leader, ("ENQUEUE", self.ballot_num, self.popQueue()))
-			time.sleep(.1)
+					self.net.queue_message(self.leader, ("ENQUEUE", self.ballot_num, self.popQueue()))
+			time.sleep(3)
 			self.random_delay()
 
 	def handleSnapshot(self):
@@ -133,7 +133,7 @@ class MultiPaxos:
 						error(self.pid,"Unknown message received:",content,"from",sender)
 			elif content[1][0] < self.ballot_num[0]:
 				# they are behind
-				self.net.send(sender, ("OUTDATED", self.ballot_num))
+				self.net.queue_message(sender, ("OUTDATED", self.ballot_num))
 			else:
 				# we are behind
 				self.in_catchup = (content, sender)
@@ -162,17 +162,16 @@ class MultiPaxos:
 			elif content[1][0] < self.ballot_num[0]:
 				# they are behind
 				self.debug("receieved outdated message", content, sender)
-				self.net.send(sender, ("OUTDATED", self.ballot_num))
+				self.net.queue_message(sender, ("OUTDATED", self.ballot_num))
 			else:
 				# we are behind
 				self.in_catchup = (content, sender)
 
 	def data(self, content, sender):
 		assert len(self.blog.blocks)>content[2]
-		self.net.send(sender, ("DATA", self.ballot_num, self.blog.blocks[content[2]].T))
+		self.net.queue_message(sender, ("DATA", self.ballot_num, self.blog.blocks[content[2]].T))
 
 	def receive_data(self, content, sender):
-		self.debug("recieved data", content, sender)
 		# assert self.ballot_num[0] == content[1][0], "received data for wrong ballot num"
 		self.blog.add(content[2].OP, content[2].username, content[2].title, content[2].content)
 		self.incrementDepth()
@@ -181,28 +180,39 @@ class MultiPaxos:
 	def catchup(self, content, sender):
 		with self.catchup_lock:
 			self.debug("STARTING CATCHUP", content, sender)
+			time.sleep(4)
+			self.net.messages.clear()
+			self.net.recvMessages.clear()
 			assert self.in_catchup is not None, "wasn't instructed to enter"
+			failiure_limit = 2
 			while self.ballot_num[0] < content[1][0]:
 				self.debug("catching up - ", self.ballot_num[0], " -> ", content[1][0])
 				self.caughtup = False
-				self.net.send(sender, ("QUERY", self.ballot_num, self.ballot_num[0]))
+				self.net.queue_message(sender, ("QUERY", self.ballot_num, self.ballot_num[0]))
 				start_time = time.time()
-				while time.time() < start_time + 3 and self.caughtup == False:
+				while time.time() < start_time + 10 and self.caughtup == False:
 					time.sleep(.1)
+				if self.caughtup == False:
+					failiure_limit -= 1
+				if failiure_limit == 0:
+					self.in_catchup = None
+					error(self.pid, "FAILED TO CATCHUP")
+					return False
+
 			self.in_catchup = None
 			self.debug("ALL CAUGHT UP")
 
 	def pong(self, content, sender):
 		# maybe check depth / ballot num?
 		if self.leader == self.pid:
-			self.net.send(sender, ("PONG", self.ballot_num))
+			self.net.queue_message(sender, ("PONG", self.ballot_num))
 
 	def receive_pong(self, content, sender):
 		self.heartbeats |= {sender}
 
 	def check_heartbeat(self, target):
 		self.heartbeats -= {target}
-		self.net.send(target, ("PING", self.ballot_num))
+		self.net.queue_message(target, ("PING", self.ballot_num))
 		start_time = time.time()
 		while time.time() < start_time + self.TIMEOUT:
 			if target in self.heartbeats: break
@@ -236,15 +246,15 @@ class MultiPaxos:
 		if content[1] >= self.ballot_num:
 			self.ballot_num = content[1]
 			self.demo("PROMISE", f"<{self.ballot_num}>", f"<{self.accept_num}>", f"<{self.accept_val}>", f"<{self.pid} to {sender}>")
-			self.net.send(sender, ("PROMISE", self.ballot_num, self.accept_num, self.accept_val))
+			self.net.queue_message(sender, ("PROMISE", self.ballot_num, self.accept_num, self.accept_val))
 			if sender != self.pid:
 				for message in self.queue:
-					self.net.send(sender, ("ENQUEUE", self.ballot_num, message))
+					self.net.queue_message(sender, ("ENQUEUE", self.ballot_num, message))
 				with self.queueLock:
 					self.queue = []
 
 	def receive_promise(self, content, sender):
-		self.debug("recv promise", content, sender, self.ballot_num)
+		self.debug("recv promise", content, sender)
 		if content[1] == self.ballot_num:
 			self.promises += 1
 			if content[2] is not None:
@@ -288,7 +298,7 @@ class MultiPaxos:
 			self.accept_num = content[1]
 			self.accept_val = content[2]
 			self.demo("ACCEPTED", f"<{self.ballot_num}>", f"<{self.accept_num}>", f"<{self.accept_val}>", f"<{self.pid} to {sender}>")
-			self.net.send(sender, ("ACCEPTED", self.ballot_num, self.accept_num, self.accept_val))
+			self.net.queue_message(sender, ("ACCEPTED", self.ballot_num, self.accept_num, self.accept_val))
 
 
 	
@@ -309,8 +319,9 @@ class MultiPaxos:
 
 	def receive_decide(self, content, sender):
 		self.demo("DECIDING", content, f"<from {sender}>")
-		self.blog.add(*content[2])
-		self.incrementDepth()
+		self.leader = sender
+		if self.blog.add(*content[2]):
+			self.incrementDepth()
 
 	def __repr__(self):
 		out = '['

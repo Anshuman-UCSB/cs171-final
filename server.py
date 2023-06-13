@@ -12,7 +12,7 @@ class Server:
 		self.blog = Blog()
 		self.net = Network(self.pid, base_port=8000, delay=3)
 		self.mp = MultiPaxos(self.net, self.pid, 
-							self.blog, use_snapshot=False)
+							self.blog, use_snapshot="save" in argv)
 
 
 
@@ -61,22 +61,20 @@ class Server:
 			elif inp.startswith("post"):
 				args = parseArgs(inp)
 				if len(args) == 3:
-					self.debug(args)
 					self.mp.addQueue(("POST", args[0], args[1], args[2]))
 			elif inp.startswith("comment"):
 				args = parseArgs(inp)
 				if len(args) == 3:
-					self.debug(args)
 					self.mp.addQueue(("COMMENT", args[0], args[1], args[2]))
 			elif inp == "blog":
 				self.blog.blog()
 			elif inp.startswith("view"):
-				name = parseNums(inp)
+				name = parseArgs(inp)
 				if len(name) > 0:
 					name = name[0]
 				self.blog.view(name)
 			elif inp.startswith("read"):
-				title = parseNums(inp)
+				title = parseArgs(inp)
 				if len(title) > 0:
 					title = title[0]
 				self.blog.read(title)
@@ -86,6 +84,8 @@ class Server:
 						dest = parseNums(inp)[0]
 						msg = inp.split(',')[1][:-1].strip()
 						self.net.send(dest, msg)
+					elif inp == "print":
+						print(self.mp)
 					else:
 						debug("ERROR: invalid command")	
 				else:

@@ -54,7 +54,6 @@ class Network:
 						to_send.append(msg)
 				self.outgoing_msgs = [x for x in self.outgoing_msgs if x not in to_send]
 				for msg in to_send:
-					debug("sending", msg)
 					self.send(msg[1], msg[2])
 			time.sleep(.05)
 
@@ -71,7 +70,8 @@ class Network:
 			else:
 				if self.canSend[address[1]-self.base_port]:
 					if type(message) is tuple and message[0] in (
-						"PROMISE", "ACCEPTED", "DECIDE", "PING", "PONG", "QUERY", "DATA"
+						"PROMISE", "ACCEPTED", "DECIDE",
+						"PING", "PONG", "QUERY", "DATA", "LEADER"
 						):
 						with self.recvMessageLock:
 							self.recvMessages.append((message,address[1]-self.base_port))
@@ -86,7 +86,7 @@ class Network:
 	def broadcast(self, message):
 		debug("broadcasting message",message)
 		for dest in range(5):
-			debug("queuing message", dest, message)
+			debug("queuing message", dest, message, level = 3)
 			self.queue_message(dest, message)
 		# print(self.outgoing_msgs, time.time())
 

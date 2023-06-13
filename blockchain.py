@@ -60,6 +60,7 @@ class Blog:
 		elif OP == "COMMENT":
 			print(f"NEW COMMENT `{title}` from {username}")
 		self.blocks.append(HashBlock(h_prev, OP, username, title, content))
+		return True
 	def blockchain(self):
 		debug("print blockchain")
 	def blog(self):
