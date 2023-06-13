@@ -36,7 +36,7 @@ class MultiPaxos:
 		self.catchup_lock = threading.Lock()
 
 		self.use_snapshot = use_snapshot
-		self.snapshot_period = 15
+		self.snapshot_period = 30
 		if self.use_snapshot:
 			self.load_state()
 
@@ -48,7 +48,7 @@ class MultiPaxos:
 		self.net.broadcast(("PING", self.ballot_num))
 
 	def debug(self, *args, **kwargs):
-		# if self.isDebug or True:
+		if self.isDebug:
 			print(f"{Fore.RED}[DEBUG - {self.pid}]:{Style.RESET_ALL}",Style.DIM+colors[self.pid],*args, **kwargs,end=f"{Style.RESET_ALL}\n")
 	def demo(self, *args, **kwargs):
 		if not self.isDebug:
@@ -68,6 +68,7 @@ class MultiPaxos:
 		with open(path, 'wb') as f:
 			pickle.dump((self.blog.blocks, self.accept_val), f)
 			self.debug("saving", (str(self.blog.blocks)[:30]+"...", self.accept_val), "to", path)
+			self.demo("saving", (str(self.blog.blocks)[:30]+"...", self.accept_val), "to", path)
 
 	def load_state(self, path=None):
 		path = path or f"states/{self.pid}"
@@ -76,8 +77,10 @@ class MultiPaxos:
 				self.blog.blocks, self.accept_val = pickle.load(f)
 				self.ballot_num[0] = len(self.blog.blocks)
 				self.debug("Loaded state from",path)
+				self.demo("Loaded state from",path) 
 		except FileNotFoundError:
 			self.debug("Not loading from snapshot - no found state file at",path)
+			self.demo("Not loading from snapshot - no found state file at",path)
 
 	def incrementBallot(self):
 		self.ballot_num[1] += 1
@@ -97,6 +100,7 @@ class MultiPaxos:
 				if self.leader == self.pid:
 					self.accept() and self.decide()
 				elif self.leader is None or self.check_heartbeat(self.leader) == False:
+					self.leader = None
 					self.prepare() and self.accept() and self.decide()
 				else:
 					self.net.queue_message(self.leader, ("ENQUEUE", self.ballot_num, self.popQueue()))
@@ -132,8 +136,11 @@ class MultiPaxos:
 					case "DATA":
 						self.receive_data(content, sender)
 					case "LEADER":
-						self.debug("updating leader from", self.leader, "to", content[2])
-						self.leader = content[2]
+						if content[2] != self.pid:
+							self.debug("updating leader from", self.leader, "to", content[2])
+							self.leader = content[2]
+						else:
+							self.debug("Not overwriting leader to ourselves")
 					case _:
 						error(self.pid,"Unknown message received:",content,"from",sender)
 			elif content[1][0] < self.ballot_num[0]:
@@ -185,6 +192,7 @@ class MultiPaxos:
 
 	def catchup(self, content, sender):
 		with self.catchup_lock:
+			self.demo("starting catchup")
 			self.debug("STARTING CATCHUP", content, sender)
 			time.sleep(4)
 			self.net.messages.clear()
@@ -206,6 +214,7 @@ class MultiPaxos:
 					return False
 
 			self.in_catchup = None
+			self.demo("catchup finished")
 			self.debug("ALL CAUGHT UP")
 
 	def pong(self, content, sender):
@@ -217,12 +226,18 @@ class MultiPaxos:
 		self.heartbeats |= {sender}
 
 	def check_heartbeat(self, target):
+		self.debug("checking heartbeat of",target)
 		self.heartbeats -= {target}
 		self.net.queue_message(target, ("PING", self.ballot_num))
 		start_time = time.time()
 		while time.time() < start_time + self.TIMEOUT:
 			if target in self.heartbeats: break
 			time.sleep(.1)
+		if target in self.heartbeats:
+			self.debug("heartbeat of",target,"is alive")
+		else:
+			self.debug("heartbeat of",target,"is NOT alive")
+			self.demo("TIMEOUT")
 		return target in self.heartbeats
 
 	def prepare(self):
@@ -354,7 +369,7 @@ class MultiPaxos:
 		out += f'\tAccept Num: {self.accept_num}\n'
 		out += f'\tNum Promises: {self.promises}\n'
 		out += f'\tNum Acceptances: {self.acceptances}\n'
-		out += f'\tHeartbeats: {self.heartbeats}\n'
+		# out += f'\tHeartbeats: {self.heartbeats}\n'
 
 		out += ']'
 		return out

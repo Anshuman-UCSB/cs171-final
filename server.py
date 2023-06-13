@@ -43,7 +43,7 @@ class Server:
 					self.net.fail_link(target)
 					self.debug("broke link to",target)
 					self.demo("broke link to",target)
-					self.demo(self.net.canSend, self.mp.net.canSend)
+					self.demo(self.net.canSend)
 			elif inp.startswith("fixLink"):
 				target = parseNums(inp)
 				if len(target) > 0:
@@ -51,7 +51,7 @@ class Server:
 					self.net.fix_link(target)
 					self.debug("fixed link to",target)
 					self.demo("fixed link to",target)
-					self.demo(self.net.canSend, self.mp.net.canSend)
+					self.demo(self.net.canSend)
 			elif inp == "blockchain":
 				print(self.blog)
 			elif inp == "queue":
@@ -78,18 +78,14 @@ class Server:
 				if len(title) > 0:
 					title = title[0]
 				self.blog.read(title)
+			elif inp.startswith("send"):
+				dest = parseNums(inp)[0]
+				msg = inp.split(',')[1][:-1].strip()
+				self.net.send(dest, msg)
+			elif inp == "print":
+				print(self.mp)
 			else:
-				if isDebug():
-					if inp.startswith("send"):
-						dest = parseNums(inp)[0]
-						msg = inp.split(',')[1][:-1].strip()
-						self.net.send(dest, msg)
-					elif inp == "print":
-						print(self.mp)
-					else:
-						debug("ERROR: invalid command")	
-				else:
-					print("ERROR: invalid command")
+				print("ERROR: invalid command")
 
 if __name__ == "__main__":
 	try:

@@ -35,4 +35,13 @@ fixLink 0
 propose(x,y,z)
 
 expected:
-(a,b,c) gets decided 
+(a,b,c) gets decided
+
+4. new leader
+start all
+0 posts (x,y,z)
+crash 0 after becoming leader
+3 posts (a,b,c)
+
+expected:
+3 is leader
